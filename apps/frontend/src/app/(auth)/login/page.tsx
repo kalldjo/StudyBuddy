@@ -76,8 +76,34 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#F5F5F7] via-[#FFFFFF] to-[#E8ECEF] p-4 font-sans relative">
-      <div className="w-full max-w-md bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_12px_40px_0_rgba(0,0,0,0.08)] rounded-3xl p-8 transition-all relative z-10">
+    <div className="flex min-h-screen items-center justify-center bg-[#FAFAFA] p-4 font-sans relative overflow-hidden">
+      
+      {/* Running Illumination Background Elements */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes float-1 {
+          0% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(40px, -60px) scale(1.1); }
+          66% { transform: translate(-30px, 30px) scale(0.9); }
+          100% { transform: translate(0, 0) scale(1); }
+        }
+        @keyframes float-2 {
+          0% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(-50px, 60px) scale(1.15); }
+          66% { transform: translate(30px, -40px) scale(0.85); }
+          100% { transform: translate(0, 0) scale(1); }
+        }
+        .anim-float-1 { animation: float-1 9s infinite alternate ease-in-out; }
+        .anim-float-2 { animation: float-2 11s infinite alternate ease-in-out; }
+      `}} />
+      
+      {/* Animated glowing orbs */}
+      <div className="absolute top-[-15%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-500/20 blur-[100px] anim-float-1 pointer-events-none"></div>
+      <div className="absolute bottom-[-15%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-indigo-500/15 blur-[120px] anim-float-2 pointer-events-none" style={{ animationDelay: '-2s' }}></div>
+      <div className="absolute top-[20%] right-[0%] w-[35vw] h-[35vw] rounded-full bg-purple-500/15 blur-[90px] anim-float-1 pointer-events-none" style={{ animationDelay: '-4s' }}></div>
+      <div className="absolute bottom-[10%] left-[10%] w-[40vw] h-[40vw] rounded-full bg-cyan-400/20 blur-[100px] anim-float-2 pointer-events-none" style={{ animationDelay: '-6s' }}></div>
+
+      {/* Main Login Card */}
+      <div className="w-full max-w-md bg-white/70 backdrop-blur-2xl border border-white/50 shadow-[0_24px_80px_0_rgba(0,0,0,0.12)] rounded-3xl p-8 transition-all relative z-10">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <img 

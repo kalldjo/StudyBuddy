@@ -16,6 +16,16 @@ export default function AIStudio() {
   const [generating, setGenerating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Load cache on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const cachedPrompt = localStorage.getItem('ai_prompt_cache');
+      const cachedResult = localStorage.getItem('ai_result_cache');
+      if (cachedPrompt) setPrompt(cachedPrompt);
+      if (cachedResult) setResult(cachedResult);
+    }
+  }, []);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -49,6 +59,10 @@ export default function AIStudio() {
         } else {
           clearInterval(interval);
           setGenerating(false);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('ai_prompt_cache', finalPrompt);
+            localStorage.setItem('ai_result_cache', text);
+          }
         }
       }, 15);
     } catch (err: any) {

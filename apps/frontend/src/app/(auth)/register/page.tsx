@@ -16,9 +16,21 @@ export default function RegisterPage() {
   
   const router = useRouter();
 
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const hasMinLength = password.length >= 8;
+  const isPasswordValid = hasUpperCase && hasNumber && hasSpecialChar && hasMinLength;
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!isPasswordValid) {
+      setError('Please ensure your password meets all requirements.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -70,16 +82,35 @@ export default function RegisterPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <Input 
-            label="Password" 
-            type="password" 
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-          />
-          <Button type="submit" className="w-full mt-2" disabled={loading}>
+          <div>
+            <Input 
+              label="Password" 
+              type="password" 
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            {/* Password Policy UI */}
+            {password.length > 0 && (
+              <div className="mt-2 text-[10px] flex flex-col gap-1 font-semibold p-2 bg-zinc-50 rounded-lg border border-zinc-100">
+                <p className="text-zinc-500 mb-0.5">Password requirements:</p>
+                <span className={hasMinLength ? 'text-green-600' : 'text-zinc-400'}>
+                  {hasMinLength ? '✓' : '○'} At least 8 characters
+                </span>
+                <span className={hasUpperCase ? 'text-green-600' : 'text-zinc-400'}>
+                  {hasUpperCase ? '✓' : '○'} At least 1 uppercase letter
+                </span>
+                <span className={hasNumber ? 'text-green-600' : 'text-zinc-400'}>
+                  {hasNumber ? '✓' : '○'} At least 1 number
+                </span>
+                <span className={hasSpecialChar ? 'text-green-600' : 'text-zinc-400'}>
+                  {hasSpecialChar ? '✓' : '○'} At least 1 special character (!@#$%^&*)
+                </span>
+              </div>
+            )}
+          </div>
+          <Button type="submit" className="w-full mt-2" disabled={loading || (password.length > 0 && !isPasswordValid)}>
             {loading ? 'Creating account...' : 'Sign Up'}
           </Button>
         </form>

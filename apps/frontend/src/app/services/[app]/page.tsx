@@ -149,9 +149,8 @@ export default function ServicesPage() {
   // 8. Video Lecture Studio State
   const [activeChapter, setActiveChapter] = useState(0);
   const chapters = [
-    { title: '1. Pengantar Model Graf & Neo4j', duration: '12:45', notes: 'Graf terdiri dari Node dan Relationship. Neo4j menyimpan data berorientasi objek graf.' },
-    { title: '2. Sintaksis Kueri MATCH & CREATE Cypher', duration: '18:12', notes: 'Gunakan tanda kurung () untuk node dan [] untuk relationship.' },
-    { title: '3. Normalisasi Relasional vs Skema Fleksibel', duration: '15:30', notes: 'RDBMS butuh Join Table, graf tinggal traversing langsung tanpa lambat.' }
+    { title: '1. Database Foundations & ERD', videoId: 'U9_X0aF2WRs', duration: '20:15', notes: 'Pelajari dasar-dasar perancangan basis data, entitas, atribut, dan cara pemetaan ERD.' },
+    { title: '2. Advanced Database Normalization', videoId: '5ikiX0gv5w4', duration: '18:30', notes: 'Kuasai arsitektur database relasional dari 1NF, 2NF, hingga 3NF untuk meminimalisasi redundansi.' }
   ];
   const [lectureNotes, setLectureNotes] = useState('');
   const [notesLog, setNotesLog] = useState<string[]>([]);
@@ -1142,16 +1141,16 @@ export default function ServicesPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Fallback Screen Video Box */}
+                  {/* Actual YouTube Video Player Box */}
                   <div className="md:col-span-2 flex flex-col gap-3">
                     <div className="bg-zinc-900 aspect-video rounded-2xl flex items-center justify-center text-white relative overflow-hidden shadow">
-                      <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: "url('/logo.png')" }} />
-                      <div className="flex flex-col items-center gap-2 z-10 p-4 text-center">
-                        <span className="text-4xl text-amber-500">▶️</span>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-400">PLAYING LESSON CHAPTER</h4>
-                        <p className="text-sm font-extrabold text-white/95 mt-1">{chapters[activeChapter].title}</p>
-                        <span className="text-[10px] text-white/70 font-mono mt-1">Duration: {chapters[activeChapter].duration}</span>
-                      </div>
+                      <iframe
+                        src={`https://www.youtube.com/embed/${chapters[activeChapter].videoId}?rel=0&modestbranding=1`}
+                        title={chapters[activeChapter].title}
+                        className="absolute inset-0 w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      ></iframe>
                     </div>
 
                     <span className="text-xs font-black text-zinc-400 px-1 mt-1">Penjelasan Slide Ringkas</span>

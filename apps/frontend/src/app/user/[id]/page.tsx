@@ -114,7 +114,7 @@ export default function UserProfileViewer() {
       if (activeView !== 'direct_sync') return;
       setLoadingBuddies(true);
       try {
-        const res = await apiFetch('/friends');
+        const res = await apiFetch('/friends/list');
         const list = res.data || [];
         setBuddies(list);
         if (list.length > 0 && !activeChatBuddyId) {
@@ -1182,29 +1182,47 @@ export default function UserProfileViewer() {
                 </div>
 
                 {/* Main Chat space */}
-                <div className="md:col-span-8 border border-zinc-100 rounded-2xl p-4 flex flex-col justify-between bg-white">
+                <div className="md:col-span-8 border border-zinc-200 rounded-2xl flex flex-col justify-between bg-[#EFEAE2] overflow-hidden relative shadow-inner">
+                  {/* WhatsApp-style doodle background overlay */}
+                  <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")' }}></div>
+
+                  {/* Chat Header */}
+                  <div className="bg-white px-5 py-3 border-b border-zinc-200 flex items-center gap-3 z-10 shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-lg">
+                      {activeChatBuddyName ? activeChatBuddyName.charAt(0) : '?'}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-zinc-800 text-sm">{activeChatBuddyName || 'Select a Buddy'}</h4>
+                      <p className="text-[10px] font-semibold text-emerald-500">Online</p>
+                    </div>
+                  </div>
                   
                   {/* Messages Feed */}
-                  <div className="flex flex-col gap-3.5 overflow-y-auto max-h-[320px] p-2 flex-1">
+                  <div className="flex flex-col gap-3 overflow-y-auto max-h-[350px] p-4 flex-1 z-10">
                     {!activeChatBuddyId ? (
-                      <div className="text-center py-20 text-zinc-400 italic text-xs font-semibold">
-                        Pilih teman belajar untuk memulai pertukaran pesan secara real-time.
+                      <div className="text-center py-20 text-zinc-500/80 italic text-xs font-semibold bg-white/50 backdrop-blur-sm rounded-2xl w-fit mx-auto px-6 border border-zinc-200/50">
+                        Pilih teman belajar untuk memulai obrolan real-time.
                       </div>
                     ) : buddyMessagesList.length === 0 ? (
-                      <div className="text-center py-20 text-zinc-400 italic text-xs font-semibold">
+                      <div className="text-center py-20 text-zinc-500/80 italic text-xs font-semibold bg-white/50 backdrop-blur-sm rounded-2xl w-fit mx-auto px-6 border border-zinc-200/50">
                         Kirim pesan pertama Anda untuk memulai koordinasi tugas!
                       </div>
                     ) : (
                       buddyMessagesList.map((msg, idx) => {
                         const isMe = msg.senderId === currentUser?.id;
                         return (
-                          <div key={msg.id || idx} className={`flex flex-col max-w-[80%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}>
-                            <div className={`p-3.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-[0_1px_4px_rgba(0,0,0,0.01)] ${isMe ? 'bg-logo-gradient text-white' : 'bg-zinc-100 text-zinc-800'}`}>
+                          <div key={msg.id || idx} className={`flex flex-col max-w-[75%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}>
+                            <div 
+                              className={`px-4 py-2.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-sm relative ${isMe ? 'bg-[#D9FDD3] text-zinc-800 rounded-tr-sm' : 'bg-white text-zinc-800 rounded-tl-sm'}`}
+                            >
                               {msg.content}
                             </div>
-                            <span className="text-[8px] text-zinc-400 mt-1">
-                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-[9px] text-zinc-500 font-medium">
+                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              {isMe && <span className="text-[10px] text-blue-500">✓✓</span>}
+                            </div>
                           </div>
                         );
                       })
@@ -1212,21 +1230,27 @@ export default function UserProfileViewer() {
                   </div>
 
                   {/* Message Input Form */}
-                  <form onSubmit={handleSendMessage} className="flex gap-2.5 pt-3.5 border-t border-zinc-100 mt-4">
+                  <form onSubmit={handleSendMessage} className="flex gap-3 p-3 bg-[#F0F2F5] border-t border-zinc-200 z-10 items-center">
+                    <button type="button" className="p-2 text-zinc-500 hover:text-zinc-700 transition">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                    <button type="button" className="p-2 text-zinc-500 hover:text-zinc-700 transition">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    </button>
                     <input 
                       type="text" 
                       value={chatInputs}
                       onChange={e => setChatInputs(e.target.value)}
-                      placeholder={activeChatBuddyId ? `Kirim pesan ke ${activeChatBuddyName}...` : "Type a peer-to-peer sync message..."}
+                      placeholder="Ketik pesan..."
                       disabled={!activeChatBuddyId}
-                      className="flex-1 bg-zinc-50 hover:bg-zinc-100/50 border border-zinc-100 rounded-full px-4.5 py-2.5 text-xs focus:outline-none focus:bg-white focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition-all font-semibold text-zinc-800 placeholder-zinc-400"
+                      className="flex-1 bg-white border border-transparent rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-zinc-300 transition-all font-semibold text-zinc-800 placeholder-zinc-400 shadow-sm"
                     />
                     <button 
                       type="submit" 
                       disabled={!activeChatBuddyId || !chatInputs.trim()}
-                      className="px-5 py-2.5 bg-logo-gradient text-white font-bold text-xs rounded-full shadow-sm hover:opacity-95 transition disabled:opacity-50"
+                      className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-sm hover:bg-emerald-600 transition disabled:opacity-50 disabled:hover:bg-emerald-500"
                     >
-                      Send
+                      <svg className="w-4 h-4 translate-x-0.5 -translate-y-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                     </button>
                   </form>
 
