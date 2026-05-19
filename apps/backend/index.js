@@ -11,6 +11,9 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const postRoutes = require('./routes/postRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const opportunityRoutes = require('./routes/opportunityRoutes');
+const academyRoutes = require('./routes/academyRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,6 +43,9 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/opportunities', opportunityRoutes);
+app.use('/api/academy', academyRoutes);
 
 app.listen(PORT, () => {
   console.log(`[backend] server running on port ${PORT}`);

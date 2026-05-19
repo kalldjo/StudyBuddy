@@ -4,135 +4,70 @@ const processAIPrompt = async (req, res) => {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  try {
-    const topic = prompt.trim();
-    let responseText = '';
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your-gemini-api-key') {
+    // Elegant fallback guidance if no developer key is supplied in .env
+    const fallbackText = `⚠️ **Gemini AI Studio Key Diperlukan**
 
-    if (action === 'schema') {
-      responseText = `### 📊 Neo4j Cypher Schema Design: "${topic}"
-A custom relational property graph schema optimized for query path-traversal.
-
-#### 1. Graph Model Nodes & Labels
-\`\`\`cypher
-// Node Definitions
-(:Project {id: UUID, name: String, description: String, status: String, createdAt: Timestamp})
-(:Classmate {id: UUID, name: String, email: String, jurusan: String, angkatan: Integer})
-(:Skill {name: String, category: String})
-(:Milestone {id: UUID, title: String, isCompleted: Boolean, dueDate: Date})
+Untuk dapat berinteraksi dengan **Kecerdasan Buatan (AI) Asli secara real-time**, silakan pasang **Gemini API Key** Anda di file \`apps/backend/.env\`:
+\`\`\`env
+GEMINI_API_KEY=Kunci_API_Gemini_Anda
 \`\`\`
 
-#### 2. Relationship Paths & Directionality
-* \`(:Classmate)-[:CREATED_PROJECT]->(:Project)\`
-* \`(:Classmate)-[:COLLABORATES_ON {role: String}]->(:Project)\`
-* \`(:Project)-[:REQUIRES_SKILL]->(:Skill)\`
-* \`(:Project)-[:HAS_MILESTONE]->(:Milestone)\`
+*Anda bisa mendapatkan API key gratis dalam 10 detik dari [Google AI Studio (aistudio.google.com)](https://aistudio.google.com/)*.
 
-#### 3. Database Indexes & Constraints
-\`\`\`cypher
-CREATE CONSTRAINT unique_project_id IF NOT EXISTS
-FOR (p:Project) REQUIRE p.id IS UNIQUE;
+---
 
-CREATE INDEX classmate_jurusan_idx IF NOT EXISTS
-FOR (c:Classmate) ON (c.jurusan);
-\`\`\`
+### 💡 Jawaban Demo Simulasi (Fallback):
+Sebagai alternatif sementara, berikut simulasi rancangan untuk topik **"${prompt}"**:
+* **Konsep Integrasi**: Sistem SBD merekomendasikan relasi node \`(:User)-[:SKILL]->(:Skill)\` dan \`(:User)-[:INTEREST]->(:Interest)\` menggunakan indeks Cypher.
+* **Saran Fitur**: Workspace kolaborasi dengan diagram visual interaktif (2D Canvas) dan notifikasi instan.
+* **Perkiraan Waktu**: 12 jam pengerjaan intensif.`;
 
-#### 4. Reusable Traversal Queries
-\`\`\`cypher
-// Query: Find classmate collaborators who share matching skills for "${topic}"
-MATCH (p:Project {name: "${topic}"})<-[:COLLABORATES_ON]-(peer:Classmate)
-MATCH (peer)-[:KNOWS_SKILL]->(s:Skill)
-RETURN peer.name AS Collaborator, collect(s.name) AS MatchingSkills
-LIMIT 10;
-\`\`\`
-`;
-    } else if (action === 'brainstorm') {
-      responseText = `### 💡 Brainstorming Project Workspace: "${topic}"
-An advanced academic ideation brief matching classmate skillsets and research goals.
-
-#### 1. System Architecture Proposal
-* **Frontend**: Next.js 16 (App Router) + Tailwind CSS + Glassmorphism UI tokens.
-* **Backend**: Express.js REST API + JWT Cookie Sessions.
-* **Database**: Neo4j Graph Database for real-time relational analytics and buddy matches.
-
-#### 2. Key Selling Points (KSPs)
-1. **Interactive Node Analytics**: Allows teammates to visually analyze their network graph on a 2D canvas.
-2. **Context-Aware Major Syncer**: Pairs students in Informatics, Information Systems, and Computer Engineering instantly using Cypher path matching.
-3. **Scrum Task Board**: Streamlines milestone progress directly in the team's dashboard panel.
-
-#### 3. Recommended Classmate Roles
-* **Database Lead**: Focuses on query performance tuning and Neo4j session pooling.
-* **Frontend Engineer**: Builds responsive, SVG-driven canvas components.
-* **Product Owner**: Manages sprint goals and milestone approvals.
-`;
-    } else if (action === 'code') {
-      responseText = `### 💻 Starter Code Blocks: "${topic}"
-Ready-to-use TypeScript structures and database wrappers.
-
-#### 1. Next.js Fetch API Hook
-\`\`\`typescript
-import { useState, useEffect } from 'react';
-
-export function useProjectLoader(projectId: string) {
-  const [project, setProject] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(\`http://localhost:3001/api/projects/\${projectId}\`, {
-      headers: { 'Content-Type': 'application/json' }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setProject(data.project);
-        setLoading(false);
-      })
-      .catch(err => console.error('Error fetching:', err));
-  }, [projectId]);
-
-  return { project, loading };
-}
-\`\`\`
-
-#### 2. Express Neo4j Integration Controller
-\`\`\`javascript
-const neo4j = require('../config/neo4j');
-
-exports.getProjectDetails = async (req, res) => {
-  const { id } = req.params;
-  const session = neo4j.getSession();
-  try {
-    const result = await session.run(
-      'MATCH (p:Project {id: $id}) OPTIONAL MATCH (p)<-[:COLLABORATES_ON]-(c:Classmate) RETURN p, collect(c) AS team',
-      { id }
-    );
-    res.json({ project: result.records[0].get('p').properties });
-  } finally {
-    await session.close();
+    return res.json({ data: { result: fallbackText } });
   }
-};
-\`\`\`
-`;
+
+  try {
+    let systemInstruction = "You are StudyBuddy AI, a highly specialized academic assistant expert in property graph databases (especially Neo4j AuraDB & Cypher queries), Next.js, Express.js, and CRISP-DM workflows. Respond in clear, professional, and friendly Indonesian or English. Format your answers beautifully using GitHub-style Markdown (use bolding, clean headers, and tables). Keep it highly actionable and detailed.";
+    
+    if (action === 'schema') {
+      systemInstruction += " Design a high-fidelity Neo4j property graph schema (nodes, relationships, constraints, indexes) optimized for this topic. Provide clean, copy-pasteable Cypher query statements.";
+    } else if (action === 'brainstorm') {
+      systemInstruction += " Brainstorm high-impact academic project ideas, modular features, technical stack suggestions, and coordinate specific teammate roles for this topic.";
+    } else if (action === 'code') {
+      systemInstruction += " Provide copy-pasteable TypeScript code blocks, Next.js page drafts, or Express API route integration scripts tailored for this topic.";
     } else if (action === 'milestones') {
-      responseText = `### ✅ Scrum Milestones Checklist: "${topic}"
-A robust 3-stage roadmap designed for student engineering projects.
-
-| Sprint | Goal | Focus Areas | Est. Hours |
-|---|---|---|---|
-| **Sprint 1** | Schema Design & Seeding | Constraints, Mock Seeding, Auth redirect setups | 16 hrs |
-| **Sprint 2** | API Routes & Core Logic | Collaboration requests, graph visualization | 24 hrs |
-| **Sprint 3** | Integration & UX Polish | Real-time chat messaging, Pomodoro timers, CSS glow polish | 12 hrs |
-
-#### 📝 Completed checklist item recommendations:
-- [x] Register Google/GitHub Redirect parameters in environment keys.
-- [ ] Initialize Neo4j session hooks and set up standard index constraints.
-- [ ] Construct the SVG node visualization explorer on the feed page.
-- [ ] Hook up direct messaging chat listeners withMajor-specific smart replies.
-`;
+      systemInstruction += " Outline a realistic Scrum milestone sprint table and progress checklist (Sprint 1 to 3) for executing this topic as an academic project.";
     }
 
-    res.json({ data: { result: responseText } });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemInstruction}\n\nUser Input Topic: "${prompt}"` }]
+            }
+          ]
+        })
+      }
+    );
+
+    const data = await response.json();
+    if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+      const responseText = data.candidates[0].content.parts[0].text;
+      return res.json({ data: { result: responseText } });
+    } else {
+      throw new Error(data.error?.message || 'Failed to fetch reply from Gemini API');
+    }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Gemini API Error:', error);
+    res.status(500).json({ error: `AI Generation Error: ${error.message}` });
   }
 };
 
 module.exports = { processAIPrompt };
+

@@ -28,6 +28,7 @@ export default function UserProfileViewer() {
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [earnedCertificates, setEarnedCertificates] = useState<any[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<string>('none');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -99,21 +100,56 @@ export default function UserProfileViewer() {
     { id: 'n3', text: 'Rian Kurnia requested to collaborate on your CRISP-DM project.', read: false, time: '3h ago' }
   ]);
 
-  // Direct Sync Chat Simulator States
-  const [activeChatBuddy, setActiveChatBuddy] = useState<'sarah' | 'rian' | 'toni'>('sarah');
+  // Real-Time Direct Sync Chat States
+  const [buddies, setBuddies] = useState<any[]>([]);
+  const [loadingBuddies, setLoadingBuddies] = useState(false);
+  const [activeChatBuddyId, setActiveChatBuddyId] = useState<string>('');
+  const [activeChatBuddyName, setActiveChatBuddyName] = useState<string>('');
+  const [buddyMessagesList, setBuddyMessagesList] = useState<any[]>([]);
   const [chatInputs, setChatInputs] = useState('');
-  const [buddyMessages, setBuddyMessages] = useState<{[key: string]: any[]}>({
-    sarah: [
-      { sender: 'buddy', text: 'Hello! I saw your post on the study feed.' },
-      { sender: 'buddy', text: 'Let\'s collaborate on the SBD assignment together tonight. Are you free?' }
-    ],
-    rian: [
-      { sender: 'buddy', text: 'Hey there classmate! Ready to sync the CRISP-DM encoding document?' }
-    ],
-    toni: [
-      { sender: 'buddy', text: 'That UI visualizer looks absolutely fire! How did you render the graph relations?' }
-    ]
-  });
+
+  // Fetch dynamic chat buddies (friends)
+  useEffect(() => {
+    const loadChatBuddies = async () => {
+      if (activeView !== 'direct_sync') return;
+      setLoadingBuddies(true);
+      try {
+        const res = await apiFetch('/friends');
+        const list = res.data || [];
+        setBuddies(list);
+        if (list.length > 0 && !activeChatBuddyId) {
+          setActiveChatBuddyId(list[0].id);
+          setActiveChatBuddyName(list[0].name);
+        }
+      } catch (error) {
+        console.error('Failed to load friends list', error);
+      } finally {
+        setLoadingBuddies(false);
+      }
+    };
+    loadChatBuddies();
+  }, [activeView]);
+
+  // Fetch & Poll messages for the active Chat Buddy
+  useEffect(() => {
+    if (activeView !== 'direct_sync' || !activeChatBuddyId) return;
+
+    const fetchMessages = async () => {
+      try {
+        const res = await apiFetch(`/chat/${activeChatBuddyId}`);
+        if (res.success && res.data) {
+          setBuddyMessagesList(res.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch message history', error);
+      }
+    };
+
+    fetchMessages(); // initial load
+    
+    const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, [activeView, activeChatBuddyId]);
 
   // Graph Explorer Node Selector States
   const [selectedGraphNode, setSelectedGraphNode] = useState<any>(null);
@@ -133,6 +169,13 @@ export default function UserProfileViewer() {
         
         const postsRes = await apiFetch(`/posts/user/${userId}`);
         setPosts(postsRes.data || []);
+
+        try {
+          const certRes = await apiFetch(`/academy/my-credentials?userId=${userId}`);
+          setEarnedCertificates(certRes.data || []);
+        } catch (e) {
+          console.error('Failed to load certificates', e);
+        }
       } catch (error) {
         console.error('Failed to load profile data', error);
       } finally {
@@ -346,35 +389,35 @@ export default function UserProfileViewer() {
   };
 
   // Direct DM message send handler
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInputs.trim()) return;
+    if (!chatInputs.trim() || !activeChatBuddyId) return;
 
-    const userMsg = { sender: 'user', text: chatInputs };
-    const currentBuddy = activeChatBuddy;
-    
-    setBuddyMessages(prev => ({
-      ...prev,
-      [currentBuddy]: [...(prev[currentBuddy] || []), userMsg]
-    }));
+    const content = chatInputs.trim();
     setChatInputs('');
 
-    // Trigger realistic buddy reply in 800ms
-    setTimeout(() => {
-      let reply = "Awesome! Let's arrange a Study meeting space.";
-      if (currentBuddy === 'sarah') {
-        reply = "I will write down our Neo4j Cypher scripts. Should we create a shared GitHub repository for SBD?";
-      } else if (currentBuddy === 'rian') {
-        reply = "Great! Let's finish the CRISP-DM stage 3 report and label encoder setup tonight.";
-      } else if (currentBuddy === 'toni') {
-        reply = "Thanks! I am building the node connections visualizer module next. Let's merge the layouts.";
-      }
+    // Pre-insert local message for ultra-snappy instant feedback!
+    const localMsg = {
+      id: `local_${Date.now()}`,
+      senderId: currentUser?.id,
+      receiverId: activeChatBuddyId,
+      content,
+      createdAt: new Date().toISOString()
+    };
+    setBuddyMessagesList(prev => [...prev, localMsg]);
 
-      setBuddyMessages(prev => ({
-        ...prev,
-        [currentBuddy]: [...(prev[currentBuddy] || []), { sender: 'buddy', text: reply }]
-      }));
-    }, 900);
+    try {
+      await apiFetch('/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          receiverId: activeChatBuddyId,
+          content
+        })
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to deliver message');
+    }
   };
 
   if (loading) {
@@ -609,6 +652,20 @@ export default function UserProfileViewer() {
 
                     {profile.bio && (
                       <p className="text-zinc-600 mt-6 text-sm leading-relaxed max-w-2xl italic">"{profile.bio}"</p>
+                    )}
+
+                    {earnedCertificates && earnedCertificates.length > 0 && (
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {earnedCertificates.map(cert => (
+                          <span 
+                            key={cert.id} 
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-sm border border-yellow-400 hover:scale-105 transition-transform cursor-help"
+                            title={`Sertifikat ID: ${cert.certificateId}\nLulus pada: ${new Date(cert.earnedAt).toLocaleDateString()}`}
+                          >
+                            🎖️ {cert.titleAwarded}
+                          </span>
+                        ))}
+                      </div>
                     )}
 
                     <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-black/5">
@@ -1047,7 +1104,8 @@ export default function UserProfileViewer() {
                           <div className="pt-3 border-t border-zinc-100/80 flex flex-col gap-2">
                             <button 
                               onClick={() => {
-                                setActiveChatBuddy(selectedGraphNode.id === 'sarah' ? 'sarah' : 'rian');
+                                setActiveChatBuddyId(selectedGraphNode.id);
+                                setActiveChatBuddyName(selectedGraphNode.label);
                                 setActiveView('direct_sync');
                               }}
                               className="w-full py-2 bg-logo-gradient text-white font-bold text-[10px] rounded-xl hover:opacity-90 shadow-sm transition"
@@ -1100,44 +1158,57 @@ export default function UserProfileViewer() {
                 <div className="md:col-span-4 bg-zinc-50 border border-zinc-100/80 rounded-2xl p-4 flex flex-col gap-2.5">
                   <span className="text-[10px] font-extrabold uppercase text-zinc-400 px-1 mb-1">Active Peers</span>
                   
-                  <button 
-                    onClick={() => setActiveChatBuddy('sarah')}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${activeChatBuddy === 'sarah' ? 'bg-white border-zinc-200 shadow-sm' : 'border-transparent hover:bg-zinc-100/50'}`}
-                  >
-                    <span className="text-xs font-extrabold text-zinc-800">Sarah Amanda</span>
-                    <span className="text-[9px] font-semibold text-zinc-400">Informatika • 2024</span>
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveChatBuddy('rian')}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${activeChatBuddy === 'rian' ? 'bg-white border-zinc-200 shadow-sm' : 'border-transparent hover:bg-zinc-100/50'}`}
-                  >
-                    <span className="text-xs font-extrabold text-zinc-800">Rian Kurnia</span>
-                    <span className="text-[9px] font-semibold text-zinc-400">Sistem Informasi • 2023</span>
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveChatBuddy('toni')}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${activeChatBuddy === 'toni' ? 'bg-white border-zinc-200 shadow-sm' : 'border-transparent hover:bg-zinc-100/50'}`}
-                  >
-                    <span className="text-xs font-extrabold text-zinc-800">Toni Akbar</span>
-                    <span className="text-[9px] font-semibold text-zinc-400">Fasilkom • 2024</span>
-                  </button>
+                  {loadingBuddies ? (
+                    <div className="text-xs text-zinc-400 py-4 text-center font-medium">Loading buddies...</div>
+                  ) : buddies.length === 0 ? (
+                    <div className="text-xs text-zinc-400 py-6 text-center italic font-semibold leading-relaxed">
+                      Belum ada peer koneksi. Temukan teman belajar Anda di Beranda!
+                    </div>
+                  ) : (
+                    buddies.map(buddy => (
+                      <button 
+                        key={buddy.id}
+                        onClick={() => {
+                          setActiveChatBuddyId(buddy.id);
+                          setActiveChatBuddyName(buddy.name);
+                        }}
+                        className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${activeChatBuddyId === buddy.id ? 'bg-white border-zinc-200 shadow-sm font-black' : 'border-transparent hover:bg-zinc-100/50 font-medium'}`}
+                      >
+                        <span className="text-xs font-extrabold text-zinc-800">{buddy.name}</span>
+                        <span className="text-[9px] font-semibold text-zinc-400">{buddy.jurusan || 'Student'} • {unwrapNeo4jInt(buddy.angkatan) || '2024'}</span>
+                      </button>
+                    ))
+                  )}
                 </div>
 
                 {/* Main Chat space */}
                 <div className="md:col-span-8 border border-zinc-100 rounded-2xl p-4 flex flex-col justify-between bg-white">
                   
                   {/* Messages Feed */}
-                  <div className="flex flex-col gap-3.5 overflow-y-auto max-h-[320px] p-2">
-                    {(buddyMessages[activeChatBuddy] || []).map((msg, idx) => (
-                      <div key={idx} className={`flex flex-col max-w-[80%] ${msg.sender === 'user' ? 'self-end items-end' : 'self-start items-start'}`}>
-                        <div className={`p-3.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-[0_1px_4px_rgba(0,0,0,0.01)] ${msg.sender === 'user' ? 'bg-logo-gradient text-white' : 'bg-zinc-100 text-zinc-800'}`}>
-                          {msg.text}
-                        </div>
-                        <span className="text-[8px] text-zinc-400 mt-1">Now</span>
+                  <div className="flex flex-col gap-3.5 overflow-y-auto max-h-[320px] p-2 flex-1">
+                    {!activeChatBuddyId ? (
+                      <div className="text-center py-20 text-zinc-400 italic text-xs font-semibold">
+                        Pilih teman belajar untuk memulai pertukaran pesan secara real-time.
                       </div>
-                    ))}
+                    ) : buddyMessagesList.length === 0 ? (
+                      <div className="text-center py-20 text-zinc-400 italic text-xs font-semibold">
+                        Kirim pesan pertama Anda untuk memulai koordinasi tugas!
+                      </div>
+                    ) : (
+                      buddyMessagesList.map((msg, idx) => {
+                        const isMe = msg.senderId === currentUser?.id;
+                        return (
+                          <div key={msg.id || idx} className={`flex flex-col max-w-[80%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}>
+                            <div className={`p-3.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-[0_1px_4px_rgba(0,0,0,0.01)] ${isMe ? 'bg-logo-gradient text-white' : 'bg-zinc-100 text-zinc-800'}`}>
+                              {msg.content}
+                            </div>
+                            <span className="text-[8px] text-zinc-400 mt-1">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
 
                   {/* Message Input Form */}
@@ -1146,12 +1217,14 @@ export default function UserProfileViewer() {
                       type="text" 
                       value={chatInputs}
                       onChange={e => setChatInputs(e.target.value)}
-                      placeholder="Type a peer-to-peer sync message..." 
+                      placeholder={activeChatBuddyId ? `Kirim pesan ke ${activeChatBuddyName}...` : "Type a peer-to-peer sync message..."}
+                      disabled={!activeChatBuddyId}
                       className="flex-1 bg-zinc-50 hover:bg-zinc-100/50 border border-zinc-100 rounded-full px-4.5 py-2.5 text-xs focus:outline-none focus:bg-white focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition-all font-semibold text-zinc-800 placeholder-zinc-400"
                     />
                     <button 
                       type="submit" 
-                      className="px-5 py-2.5 bg-logo-gradient text-white font-bold text-xs rounded-full shadow-sm hover:opacity-95 transition"
+                      disabled={!activeChatBuddyId || !chatInputs.trim()}
+                      className="px-5 py-2.5 bg-logo-gradient text-white font-bold text-xs rounded-full shadow-sm hover:opacity-95 transition disabled:opacity-50"
                     >
                       Send
                     </button>

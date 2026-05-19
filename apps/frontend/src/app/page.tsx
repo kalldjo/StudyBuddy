@@ -34,12 +34,17 @@ export default function Dashboard() {
   const [recommendedBuddies, setRecommendedBuddies] = useState<any[]>([]);
   const [discoverUsers, setDiscoverUsers] = useState<any[]>([]);
 
-  // Interactive opportunities state
-  const [opportunities, setOpportunities] = useState([
-    { id: 'op1', company: 'PT Indofood CBP', role: 'EDP Staff', info: '13 UI alumni work here', logoBg: 'bg-[#003B95]' },
-    { id: 'op2', company: 'PT Astra International', role: 'Multimedia Staff - GSI', info: '217 UI alumni work here', logoBg: 'bg-[#0E49B5]' },
-    { id: 'op3', company: 'Tokopedia', role: 'Fullstack Engineer Intern', info: '5 UI alumni work here', logoBg: 'bg-[#42B549]' }
-  ]);
+  // Dynamic opportunities state
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(true);
+  const [showOpportunityModal, setShowOpportunityModal] = useState(false);
+  const [newOpportunity, setNewOpportunity] = useState({
+    company: '',
+    role: '',
+    info: '',
+    link: '',
+    logoBg: ''
+  });
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [appliedRole, setAppliedRole] = useState('');
 
@@ -192,11 +197,49 @@ export default function Dashboard() {
     }
   };
 
+  const fetchOpportunities = async () => {
+    setLoadingOpportunities(true);
+    try {
+      const response = await apiFetch('/opportunities');
+      setOpportunities(response.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingOpportunities(false);
+    }
+  };
+
+  const handleCreateOpportunity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOpportunity.company.trim() || !newOpportunity.role.trim() || !newOpportunity.info.trim()) return;
+
+    try {
+      await apiFetch('/opportunities', {
+        method: 'POST',
+        body: JSON.stringify(newOpportunity)
+      });
+      setNewOpportunity({
+        company: '',
+        role: '',
+        info: '',
+        link: '',
+        logoBg: ''
+      });
+      setShowOpportunityModal(false);
+      await fetchOpportunities();
+      alert('Oportunitas baru berhasil ditambahkan!');
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menambahkan oportunitas.');
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchFeedPosts();
       fetchCommunityProjects();
       fetchSocialRecommendations();
+      fetchOpportunities();
     }
   }, [isAuthenticated]);
 
@@ -403,28 +446,26 @@ export default function Dashboard() {
           {/* CAMPUS OPPORTUNITIES BOARD */}
           <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] rounded-3xl p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-[11px] font-extrabold text-[#1D1D1F] tracking-wider uppercase">🎯 Opportunities for You</h3>
-              <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">{opportunities.length} active</span>
+              <h3 className="text-[11px] font-extrabold text-[#1D1D1F] tracking-wider uppercase">🎯 Opportunities</h3>
+              <button 
+                onClick={() => setShowOpportunityModal(true)}
+                className="text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 hover:bg-indigo-100/60 transition"
+              >
+                + Add
+              </button>
             </div>
             
-            {opportunities.length === 0 ? (
-              <p className="text-xs text-zinc-400 text-center py-4 italic leading-relaxed">All caught up! Check back later for more UI opportunities.</p>
+            {loadingOpportunities ? (
+              <div className="text-xs text-zinc-400 py-6 text-center animate-pulse">Loading opportunities...</div>
+            ) : opportunities.length === 0 ? (
+              <p className="text-xs text-zinc-400 text-center py-4 italic leading-relaxed">Belum ada oportunitas magang/kerja. Jadilah yang pertama membagikannya!</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {opportunities.map(op => (
                   <div key={op.id} className="p-3 bg-white border border-zinc-100 rounded-2xl relative flex flex-col gap-2 shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:scale-[1.01] transition-transform">
-                    {/* Dismiss Button */}
-                    <button 
-                      onClick={() => setOpportunities(prev => prev.filter(o => o.id !== op.id))}
-                      className="absolute top-2 right-2.5 text-zinc-300 hover:text-zinc-500 transition text-[11px] font-bold"
-                      title="Dismiss opportunity"
-                    >
-                      ✕
-                    </button>
-                    
-                    <div className="flex items-center gap-2.5 pr-4">
+                    <div className="flex items-center gap-2.5">
                       {/* Logo placeholder */}
-                      <div className={`w-8 h-8 rounded-lg ${op.logoBg} flex items-center justify-center text-[10px] font-extrabold text-white shrink-0`}>
+                      <div className={`w-8 h-8 rounded-lg ${op.logoBg || 'bg-[#0E49B5]'} flex items-center justify-center text-[10px] font-extrabold text-white shrink-0`}>
                         {op.company.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -435,16 +476,26 @@ export default function Dashboard() {
                     
                     <div className="flex items-center justify-between border-t border-zinc-50/80 pt-2 mt-1">
                       <span className="text-[9px] font-semibold text-zinc-400">{op.info}</span>
-                      <button 
-                        onClick={() => {
-                          setAppliedRole(`${op.role} at ${op.company}`);
-                          setShowApplyModal(true);
-                          setOpportunities(prev => prev.filter(o => o.id !== op.id));
-                        }}
-                        className="text-[9px] font-extrabold bg-logo-gradient text-white px-2.5 py-1 rounded-lg hover:opacity-90 transition shadow-sm"
-                      >
-                        Apply
-                      </button>
+                      {op.link ? (
+                        <a 
+                          href={op.link.startsWith('http') ? op.link : `https://${op.link}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[9px] font-extrabold bg-logo-gradient text-white px-2.5 py-1 rounded-lg hover:opacity-90 transition shadow-sm"
+                        >
+                          Apply
+                        </a>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            setAppliedRole(`${op.role} at ${op.company}`);
+                            setShowApplyModal(true);
+                          }}
+                          className="text-[9px] font-extrabold bg-zinc-100 hover:bg-zinc-200 text-zinc-600 px-2.5 py-1 rounded-lg transition"
+                        >
+                          Quick Apply
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -879,6 +930,119 @@ export default function Dashboard() {
               Great, thank you!
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ADD OPPORTUNITY MODAL OVERLAY */}
+      {showOpportunityModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-md flex items-center justify-center z-[9999] animate-in fade-in duration-200">
+          <form 
+            onSubmit={handleCreateOpportunity}
+            className="bg-white/90 backdrop-blur-2xl border border-white/50 shadow-[0_24px_64px_rgba(0,0,0,0.18)] max-w-md w-full mx-4 rounded-3xl p-6 md:p-8 animate-in zoom-in-95 duration-200 text-left flex flex-col gap-4"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[9px] font-extrabold uppercase text-indigo-600 bg-indigo-50 border border-indigo-150 px-2.5 py-0.5 rounded">
+                  Opportunities Board
+                </span>
+                <h3 className="text-base font-extrabold text-zinc-800 mt-2">Bagikan Oportunitas Baru</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowOpportunityModal(false)}
+                className="text-zinc-400 hover:text-zinc-600 font-bold text-xs"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5 mt-2">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Nama Perusahaan / Organisasi</label>
+              <input 
+                type="text" 
+                required
+                value={newOpportunity.company}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, company: e.target.value }))}
+                placeholder="Contoh: Google Indonesia, GoTo, Fasilkom UI" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Nama Peran / Jabatan</label>
+              <input 
+                type="text" 
+                required
+                value={newOpportunity.role}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, role: e.target.value }))}
+                placeholder="Contoh: Frontend Engineer Intern, Asisten Dosen SBD" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Deskripsi Singkat / Info Alumni</label>
+              <input 
+                type="text" 
+                required
+                value={newOpportunity.info}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, info: e.target.value }))}
+                placeholder="Contoh: 12 UI alumni bekerja di sini • Full-time" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Tautan Pendaftaran (Link Apply)</label>
+              <input 
+                type="text" 
+                value={newOpportunity.link}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, link: e.target.value }))}
+                placeholder="Contoh: https://careers.google.com atau kosongan" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Warna Aksen Logo</label>
+              <div className="flex gap-2">
+                {[
+                  { name: 'Red', bg: 'bg-[#EF4444]' },
+                  { name: 'Blue', bg: 'bg-[#0071E3]' },
+                  { name: 'Green', bg: 'bg-[#10B981]' },
+                  { name: 'Purple', bg: 'bg-[#8B5CF6]' },
+                  { name: 'Orange', bg: 'bg-[#F59E0B]' }
+                ].map(col => {
+                  const isSelected = newOpportunity.logoBg === col.bg;
+                  return (
+                    <button 
+                      key={col.bg}
+                      type="button"
+                      onClick={() => setNewOpportunity(prev => ({ ...prev, logoBg: col.bg }))}
+                      className={`w-6 h-6 rounded-full ${col.bg} transition ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2 scale-110' : 'hover:scale-105'}`}
+                      title={col.name}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-zinc-100">
+              <button 
+                type="button"
+                onClick={() => setShowOpportunityModal(false)}
+                className="px-4 py-2 text-zinc-500 hover:text-zinc-700 text-xs font-bold transition"
+              >
+                Batal
+              </button>
+              <button 
+                type="submit" 
+                className="px-6 py-2 bg-logo-gradient text-white font-bold rounded-xl text-xs hover:opacity-90 shadow-md transition"
+              >
+                Bagikan Oportunitas
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </main>

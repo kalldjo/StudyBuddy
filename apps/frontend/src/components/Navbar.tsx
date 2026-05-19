@@ -119,192 +119,276 @@ export default function Navbar() {
   if (pathname === '/login' || pathname === '/register') return null;
 
   return (
-    <nav className="sticky top-4 z-50 mx-auto max-w-6xl w-[95%]">
-      <div className="flex items-center justify-between rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] px-6 py-3 transition-all hover:bg-white/70">
-        <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-          <img 
-            src="/logo.png" 
-            alt="Study Buddy Logo" 
-            className="h-14 w-auto object-contain transition-all duration-300" 
-            style={{ mixBlendMode: 'multiply' }}
-          />
-        </Link>
-        
-        {isAuthenticated && (
-          <div className="hidden md:flex items-center gap-6">
-            <NavLink href="/" active={pathname === '/'}>Discover</NavLink>
-            <NavLink href="/ai" active={pathname === '/ai'}>AI Studio ✨</NavLink>
-            <NavLink href="/network" active={pathname === '/network'}>My Network</NavLink>
-            <NavLink href="/profile" active={pathname === '/profile'}>My Profile</NavLink>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 relative">
-          {isAuthenticated ? (
-             <div className="flex items-center gap-3">
-                {/* 9-Dots Launcher */}
-                <button 
-                  onClick={() => setShowAppsMenu(!showAppsMenu)} 
-                  className={`p-2 rounded-full transition-all relative ${showAppsMenu ? 'bg-logo-gradient text-white' : 'hover:bg-zinc-100 text-zinc-500 hover:text-[#1D1D1F]'}`}
-                  title="Study Buddy Utilities"
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="3" width="4" height="4" rx="1" />
-                    <rect x="10" y="3" width="4" height="4" rx="1" />
-                    <rect x="17" y="3" width="4" height="4" rx="1" />
-                    <rect x="3" y="10" width="4" height="4" rx="1" />
-                    <rect x="10" y="10" width="4" height="4" rx="1" />
-                    <rect x="17" y="10" width="4" height="4" rx="1" />
-                    <rect x="3" y="17" width="4" height="4" rx="1" />
-                    <rect x="10" y="17" width="4" height="4" rx="1" />
-                    <rect x="17" y="17" width="4" height="4" rx="1" />
-                  </svg>
-                  {timerActive && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
-                  )}
-                </button>
-
-                <div className="flex flex-col text-right">
-                  <span className="text-sm font-semibold text-zinc-800 hidden sm:inline flex items-center gap-1.5">
-                    {user?.name}
-                    {isScholar && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-logo-gradient text-white shadow-sm" title="Verified Study Buddy Scholar!">
-                        SCHOLAR ✨
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <Button variant="secondary" onClick={handleLogout} className="!py-1.5 !px-4 text-xs font-semibold">Logout</Button>
-             </div>
-          ) : (
-             <div className="flex items-center gap-2">
-               <Link href="/login"><Button variant="secondary" className="!py-1.5 !px-4 text-sm">Login</Button></Link>
-               <Link href="/register"><Button variant="primary" className="!py-1.5 !px-4 text-sm">Sign Up</Button></Link>
-             </div>
+    <>
+      <nav className="sticky top-4 z-50 mx-auto max-w-6xl w-[95%]">
+        <div className="flex items-center justify-between rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] px-6 py-3 transition-all hover:bg-white/70">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+            <img 
+              src="/logo.png" 
+              alt="Study Buddy Logo" 
+              className="h-14 w-auto object-contain transition-all duration-300" 
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          </Link>
+          
+          {isAuthenticated && (
+            <div className="hidden md:flex items-center gap-6">
+              <NavLink href="/" active={pathname === '/'}>Discover</NavLink>
+              <NavLink href="/ai" active={pathname === '/ai'}>AI Studio ✨</NavLink>
+              <NavLink href="/academy" active={pathname === '/academy'}>Academy 🎓</NavLink>
+              <NavLink href="/network" active={pathname === '/network'}>My Network</NavLink>
+              <NavLink href="/profile" active={pathname === '/profile'}>My Profile</NavLink>
+            </div>
           )}
 
-          {/* QUICK UTILITIES FLYOUT CARD */}
-          {showAppsMenu && isAuthenticated && (
-            <div className="absolute right-0 top-12 w-80 bg-white/95 backdrop-blur-2xl border border-white/50 shadow-[0_16px_48px_rgba(0,0,0,0.12)] rounded-3xl p-5 flex flex-col gap-5 z-[999] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3 relative">
+            {isAuthenticated ? (
+               <div className="flex items-center gap-3">
+                  {/* 9-Dots Launcher */}
+                  <button 
+                    onClick={() => setShowAppsMenu(!showAppsMenu)} 
+                    className={`p-2 rounded-full transition-all relative ${showAppsMenu ? 'bg-logo-gradient text-white' : 'hover:bg-zinc-100 text-zinc-500 hover:text-[#1D1D1F]'}`}
+                    title="Study Buddy Utilities"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="3" y="3" width="4" height="4" rx="1" />
+                      <rect x="10" y="3" width="4" height="4" rx="1" />
+                      <rect x="17" y="3" width="4" height="4" rx="1" />
+                      <rect x="3" y="10" width="4" height="4" rx="1" />
+                      <rect x="10" y="10" width="4" height="4" rx="1" />
+                      <rect x="17" y="10" width="4" height="4" rx="1" />
+                      <rect x="3" y="17" width="4" height="4" rx="1" />
+                      <rect x="10" y="17" width="4" height="4" rx="1" />
+                      <rect x="17" y="17" width="4" height="4" rx="1" />
+                    </svg>
+                    {timerActive && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
+                    )}
+                  </button>
+
+                  <div className="flex flex-col text-right">
+                    <span className="text-sm font-semibold text-zinc-800 hidden sm:inline flex items-center gap-1.5">
+                      {user?.name}
+                      {isScholar && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-logo-gradient text-white shadow-sm" title="Verified Study Buddy Scholar!">
+                          SCHOLAR ✨
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <Button variant="secondary" onClick={handleLogout} className="!py-1.5 !px-4 text-xs font-semibold">Logout</Button>
+               </div>
+            ) : (
+               <div className="flex items-center gap-2">
+                 <Link href="/login"><Button variant="secondary" className="!py-1.5 !px-4 text-sm">Login</Button></Link>
+                 <Link href="/register"><Button variant="primary" className="!py-1.5 !px-4 text-sm">Sign Up</Button></Link>
+               </div>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* QUICK UTILITIES SLIDING SIDE BAR DRAWER (LINKEDIN STYLE) */}
+      {showAppsMenu && isAuthenticated && (
+        <>
+          {/* Backdrop */}
+          <div 
+            onClick={() => setShowAppsMenu(false)}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[9998] animate-in fade-in duration-200" 
+          />
+          
+          {/* Sliding Drawer panel */}
+          <div className="fixed right-0 top-0 h-full w-[380px] bg-white border-l border-zinc-200 shadow-[-10px_0_40px_rgba(0,0,0,0.12)] z-[9999] flex flex-col animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 py-5 border-b border-zinc-100 shrink-0">
+              <h3 className="text-base font-extrabold text-[#1D1D1F] tracking-tight">Aplikasi Saya</h3>
+              <button 
+                onClick={() => setShowAppsMenu(false)}
+                className="p-1.5 hover:bg-zinc-100 rounded-full transition text-zinc-400 hover:text-zinc-600"
+                title="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content Area (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 custom-scrollbar">
               
-              {/* Pomodoro Study Timer */}
-              <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">🕒 Pomodoro Timer</span>
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${timerMode === 'study' ? 'bg-logo-gradient text-white' : 'bg-green-100 text-green-700'}`}>
-                    {timerMode === 'study' ? 'STUDY MODE' : 'BREAK TIME'}
+              {/* CATEGORY: APLIKASI SAYA */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Aplikasi Utama</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <DrawerItem 
+                    icon="compass"
+                    title="Jual (Textbook & Gear)"
+                    subtitle="Peer-to-peer student marketplace exchange"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/jual'); }}
+                    color="bg-blue-500/10 text-blue-600 border-blue-500/20"
+                  />
+                  <DrawerItem 
+                    icon="users"
+                    title="Grup (Class Circles)"
+                    subtitle="Collaborate on course study groups"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/grup'); }}
+                    color="bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
+                  />
+                  <DrawerItem 
+                    icon="receipt"
+                    title="Kelola Tagihan (Dorm Split)"
+                    subtitle="Track room expenses & printing ledger"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/kelola-tagihan'); }}
+                    color="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  />
+                  <DrawerItem 
+                    icon="layers"
+                    title="Flashcards (Study Decks)"
+                    subtitle="Active recall & spaced repetition review"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/flashcards'); }}
+                    color="bg-amber-500/10 text-amber-600 border-amber-500/20"
+                  />
+                  <DrawerItem 
+                    icon="trending-up"
+                    title="GPA Calculator & Matrix"
+                    subtitle="Track academic marks & honor projections"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/gpa-calculator'); }}
+                    color="bg-red-500/10 text-red-600 border-red-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* CATEGORY: KARYAWAN BERBAKAT */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Talenta & Karir</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <DrawerItem 
+                    icon="pie-chart"
+                    title="Talent Insights"
+                    subtitle="Visual skills demand & UI alumni demographics"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/talent-insights'); }}
+                    color="bg-[#0071E3]/10 text-[#0071E3] border-[#0071E3]/20"
+                  />
+                  <DrawerItem 
+                    icon="briefcase"
+                    title="Posting Pekerjaan"
+                    subtitle="Apply for Lab Assistants & TA vacancies"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/posting-pekerjaan'); }}
+                    color="bg-violet-500/10 text-violet-600 border-violet-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* CATEGORY: PENJUALAN */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Jasa & Freelance</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <DrawerItem 
+                    icon="globe"
+                    title="Marketplace Layanan"
+                    subtitle="Peer tutoring, code reviews, writing help"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/marketplace-layanan'); }}
+                    color="bg-teal-500/10 text-teal-600 border-teal-500/20"
+                  />
+                  <DrawerItem 
+                    icon="music"
+                    title="Lofi Soundscape Lounge"
+                    subtitle="Binaural beats, ambient soundtracks, study rain"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/lofi-lounge'); }}
+                    color="bg-rose-500/10 text-rose-600 border-rose-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* CATEGORY: PEMASARAN */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Pemasaran & AI</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <DrawerItem 
+                    icon="target"
+                    title="Pasang Iklan (Promo Event)"
+                    subtitle="Advertise campus events, seminars & tickets"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/pasang-iklan'); }}
+                    color="bg-sky-500/10 text-sky-600 border-sky-500/20"
+                  />
+                  <DrawerItem 
+                    icon="cpu"
+                    title="AI PDF Note Summarizer"
+                    subtitle="Paste study lecture scripts to visual bullets"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/summarizer'); }}
+                    color="bg-purple-500/10 text-purple-600 border-purple-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* CATEGORY: LEARNING */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Akademik Pro</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <DrawerItem 
+                    icon="play-circle"
+                    title="Learning Studio"
+                    subtitle="Interactive video player & lecture playback"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/learning'); }}
+                    color="bg-[#54B589]/10 text-[#54B589] border-[#54B589]/20"
+                  />
+                  <DrawerItem 
+                    icon="edit-3"
+                    title="Interactive Whiteboard"
+                    subtitle="Real-time HTML5 sketchpad for study notes"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/whiteboard'); }}
+                    color="bg-orange-500/10 text-orange-600 border-orange-500/20"
+                  />
+                  <DrawerItem 
+                    icon="heart"
+                    title="Class Buddy Matchmaker"
+                    subtitle="Algorithm search for peers with class overlap"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/matchmaker'); }}
+                    color="bg-pink-500/10 text-pink-600 border-pink-500/20"
+                  />
+                  <DrawerItem 
+                    icon="calendar"
+                    title="Exam Gantt Calendar"
+                    subtitle="Countdown ledger of academic milestones"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/calendar'); }}
+                    color="bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* QUICK UTILITY COMPONENT: Study Pomodoro widget */}
+              <div className="mt-4 p-4 bg-zinc-50 border border-zinc-150 rounded-2xl relative flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest">🕒 Pomodoro Active</span>
+                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${timerMode === 'study' ? 'bg-logo-gradient text-white' : 'bg-green-150 text-green-700 border border-green-200'}`}>
+                    {timerMode === 'study' ? 'STUDY' : 'BREAK'}
                   </span>
                 </div>
                 
-                <div className="flex items-center justify-between mt-3">
-                  <div className="text-3xl font-extrabold text-zinc-800 font-mono">
-                    {formatTimer()}
-                  </div>
-                  <div className="flex gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-black text-zinc-800 font-mono tracking-tight">{formatTimer()}</span>
+                  <div className="flex gap-1">
                     <button 
-                      onClick={handleStartPauseTimer} 
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold text-white transition ${timerActive ? 'bg-zinc-500 hover:bg-zinc-600' : 'bg-logo-gradient hover:opacity-90'}`}
+                      onClick={handleStartPauseTimer}
+                      className="px-3 py-1 bg-logo-gradient text-white text-[10px] font-bold rounded-lg hover:opacity-95 shadow-sm"
                     >
                       {timerActive ? 'Pause' : 'Start'}
                     </button>
                     <button 
-                      onClick={handleResetTimer} 
-                      className="px-2.5 py-1.5 bg-zinc-200 hover:bg-zinc-300 rounded-xl text-xs font-bold text-zinc-600 transition"
+                      onClick={handleResetTimer}
+                      className="px-2 py-1 bg-zinc-200 text-zinc-600 text-[10px] font-bold rounded-lg hover:bg-zinc-300"
                     >
                       Reset
                     </button>
                   </div>
                 </div>
-
-                {/* Micro Progress Bar */}
-                <div className="w-full h-1 bg-zinc-200 rounded-full mt-3 overflow-hidden">
-                  <div 
-                    className="h-full bg-logo-gradient transition-all duration-1000" 
-                    style={{ width: `${(timerSeconds / (timerMode === 'study' ? 25 * 60 : 5 * 60)) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Scholar Quiz */}
-              <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
-                <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">🏆 Scholar Badge Challenge</h4>
-                
-                {!quizStarted ? (
-                  <div className="text-center py-2">
-                    <p className="text-xs text-zinc-500 leading-relaxed mb-3">
-                      Answer {quizQuestions.length} study questions correctly to unlock your **Verified Scholar** profile badge!
-                    </p>
-                    {isScholar ? (
-                      <div className="flex flex-col gap-2">
-                        <span className="text-[10px] font-extrabold text-indigo-600">🎉 You are already a verified Scholar!</span>
-                        <button 
-                          onClick={() => setQuizStarted(true)} 
-                          className="w-full py-2 bg-zinc-200 text-zinc-700 font-bold rounded-xl text-xs hover:bg-zinc-300 transition"
-                        >
-                          Retake Quiz
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={() => setQuizStarted(true)} 
-                        className="w-full py-2 bg-logo-gradient text-white font-bold rounded-xl text-xs hover:opacity-90 transition"
-                      >
-                        Start Challenge
-                      </button>
-                    )}
-                  </div>
-                ) : quizComplete ? (
-                  <div className="text-center py-2">
-                    {quizSuccess ? (
-                      <div>
-                        <span className="text-3xl">🎓</span>
-                        <h5 className="font-extrabold text-sm text-zinc-800 mt-2">Challenge Passed!</h5>
-                        <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                          You earned the **Verified Scholar** title! A golden badge has been attached next to your name.
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="text-3xl">❌</span>
-                        <h5 className="font-extrabold text-sm text-zinc-800 mt-2">Incorrect Answer!</h5>
-                        <p className="text-xs text-zinc-500 mt-1">Don't worry! Review your lecture files and try again.</p>
-                      </div>
-                    )}
-                    <button 
-                      onClick={handleResetQuiz} 
-                      className="mt-4 w-full py-2 bg-zinc-200 text-zinc-700 font-bold rounded-xl text-xs hover:bg-zinc-300 transition"
-                    >
-                      Close
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] font-extrabold text-[#0071E3]">QUESTION {currentQ + 1} OF {quizQuestions.length}</span>
-                    </div>
-                    <p className="text-xs font-bold text-zinc-700 leading-relaxed mb-3">
-                      {quizQuestions[currentQ].q}
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      {quizQuestions[currentQ].a.map((option, idx) => (
-                        <button 
-                          key={idx}
-                          onClick={() => handleQuizAnswer(idx)}
-                          className="w-full p-2.5 bg-white border border-zinc-100 hover:border-indigo-200 rounded-xl text-left text-xs font-medium text-zinc-600 hover:text-indigo-600 hover:bg-indigo-50/20 transition-all"
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
             </div>
-          )}
-        </div>
-      </div>
-    </nav>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -316,5 +400,59 @@ function NavLink({ href, active, children }: { href: string, active: boolean, ch
     >
       {children}
     </Link>
+  );
+}
+
+function DrawerItem({ icon, title, subtitle, onClick, color }: { icon: string, title: string, subtitle: string, onClick: () => void, color: string }) {
+  const renderSvg = () => {
+    switch (icon) {
+      case 'compass':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3"/></svg>;
+      case 'users':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07"/></svg>;
+      case 'receipt':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6"/></svg>;
+      case 'layers':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-4.057a1.125 1.125 0 0 1 1.092 0L21.75 12"/></svg>;
+      case 'trending-up':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18 9 11.25l4.306 4.306a1.195 1.195 0 0 0 1.69 0L21.75 7.5"/></svg>;
+      case 'pie-chart':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z"/></svg>;
+      case 'briefcase':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 .966-.784 1.75-1.75 1.75H5.5"/></svg>;
+      case 'globe':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747"/></svg>;
+      case 'music':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3v9m-10.5 3a3 3 0 1 1-6 0"/></svg>;
+      case 'target':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/></svg>;
+      case 'cpu':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M12 3v1.5m3.75-1.5v1.5"/></svg>;
+      case 'play-circle':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>;
+      case 'edit-3':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82"/></svg>;
+      case 'heart':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733"/></svg>;
+      case 'calendar':
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25"/></svg>;
+      default:
+        return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9"/></svg>;
+    }
+  };
+
+  return (
+    <button 
+      onClick={onClick}
+      className="flex items-center gap-3.5 p-3 rounded-2xl bg-white border border-zinc-100 hover:border-indigo-150 hover:bg-indigo-50/10 hover:shadow-[0_4px_12px_rgba(0,0,0,0.02)] text-left transition-all hover:scale-[1.01] w-full"
+    >
+      <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${color}`}>
+        {renderSvg()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-xs font-extrabold text-[#1D1D1F] leading-tight truncate">{title}</h4>
+        <p className="text-[10px] font-medium text-zinc-400 leading-normal truncate mt-0.5">{subtitle}</p>
+      </div>
+    </button>
   );
 }
