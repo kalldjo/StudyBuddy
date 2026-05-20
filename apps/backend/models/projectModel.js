@@ -11,6 +11,7 @@ const createProject = async (userId, id, title, description, imageUrl, demoUrl, 
         description: $description,
         imageUrl: $imageUrl,
         demoUrl: $demoUrl,
+        status: 'ongoing',
         createdAt: toString(datetime())
       })
       CREATE (u)-[:CREATED_PROJECT]->(pr)
@@ -93,4 +94,71 @@ const deleteProject = async (userId, projectId) => {
   }
 };
 
-module.exports = { createProject, getProjects, getUserProjects, deleteProject };
+const requestJoinProject = async (userId, projectId, role, message) => {
+  const session = getSession();
+  try {
+    const query = `
+      MATCH (u:User {id: $userId})
+      MATCH (p:Project {id: $projectId})
+      MERGE (u)-[r:HAS_PENDING_JOIN_REQUEST]->(p)
+      SET r.role = $role, r.message = $message, r.createdAt = toString(datetime())
+      RETURN r
+    `;
+    await session.run(query, { userId, projectId, role: role || '', message: message || '' });
+    return true;
+  } finally {
+    await session.close();
+  }
+};
+
+const acceptJoinProject = async (userId, projectId, requesterId) => {
+  const session = getSession();
+  try {
+    // Only the author can accept
+    const query = `
+      MATCH (author:User {id: $userId})-[:CREATED_PROJECT]->(p:Project {id: $projectId})
+      MATCH (requester:User {id: $requesterId})-[req:HAS_PENDING_JOIN_REQUEST]->(p)
+      DELETE req
+      WITH requester, p
+      MERGE (requester)-[:JOINED_PROJECT]->(p)
+      RETURN requester
+    `;
+    const result = await session.run(query, { userId, projectId, requesterId });
+    return result.records.length > 0;
+  } finally {
+    await session.close();
+  }
+};
+
+const rejectJoinProject = async (userId, projectId, requesterId) => {
+  const session = getSession();
+  try {
+    const query = `
+      MATCH (author:User {id: $userId})-[:CREATED_PROJECT]->(p:Project {id: $projectId})
+      MATCH (requester:User {id: $requesterId})-[req:HAS_PENDING_JOIN_REQUEST]->(p)
+      DELETE req
+    `;
+    await session.run(query, { userId, projectId, requesterId });
+    return true;
+  } finally {
+    await session.close();
+  }
+};
+
+const getProjectRequests = async (userId) => {
+  const session = getSession();
+  try {
+    // Get all pending requests for projects created by this user
+    const query = `
+      MATCH (author:User {id: $userId})-[:CREATED_PROJECT]->(p:Project)
+      MATCH (requester:User)-[req:HAS_PENDING_JOIN_REQUEST]->(p)
+      RETURN req { .*, projectId: p.id, projectTitle: p.title, requesterId: requester.id, requesterName: requester.name } AS request
+    `;
+    const result = await session.run(query, { userId });
+    return result.records.map(r => r.get('request'));
+  } finally {
+    await session.close();
+  }
+};
+
+module.exports = { createProject, getProjects, getUserProjects, deleteProject, requestJoinProject, acceptJoinProject, rejectJoinProject, getProjectRequests };

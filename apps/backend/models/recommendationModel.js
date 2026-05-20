@@ -186,9 +186,33 @@ const recommendBySocialProximity = async (userId) => {
   }
 };
 
+const recommendProjectsBySkills = async (userId) => {
+  const session = getSession();
+  try {
+    const query = `
+      MATCH (me:User {id: $userId})-[:HAS_SKILL]->(mySkill:Skill)
+      MATCH (p:Project)-[:USES_SKILL]->(projSkill:Skill)
+      WHERE p.status = 'ongoing' AND toLower(mySkill.name) = toLower(projSkill.name)
+      // Ensure I'm not the creator and haven't joined yet
+      AND NOT (me)-[:CREATED_PROJECT|JOINED_PROJECT]->(p)
+      MATCH (author:User)-[:CREATED_PROJECT]->(p)
+      RETURN p { .*, authorId: author.id, authorName: author.name } AS project, count(projSkill) AS matchingSkills
+      ORDER BY matchingSkills DESC
+    `;
+    const result = await session.run(query, { userId });
+    return result.records.map(record => ({
+      project: record.get('project'),
+      matchingSkills: record.get('matchingSkills').toNumber()
+    }));
+  } finally {
+    await session.close();
+  }
+};
+
 module.exports = {
   searchByFilters,
   recommendByInterest,
   recommendBySkills,
-  recommendBySocialProximity
+  recommendBySocialProximity,
+  recommendProjectsBySkills
 };

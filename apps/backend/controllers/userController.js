@@ -2,8 +2,15 @@ const userModel = require('../models/userModel');
 
 const updateProfile = async (req, res) => {
   try {
-    const { name, bio, profilePicture, fakultas, jurusan, angkatan } = req.body;
-    const user = await userModel.updateProfile(req.userId, name, bio, profilePicture, fakultas, jurusan, angkatan);
+    const { name, bio, profilePicture, fakultas, jurusan, angkatan, sosmed, mataKuliah } = req.body;
+    const user = await userModel.updateProfile(req.userId, name, bio, profilePicture, fakultas, jurusan, angkatan, sosmed);
+    
+    // Process mataKuliah if provided as an array
+    if (Array.isArray(mataKuliah)) {
+      await userModel.updateListRel(req.userId, 'ENROLLED_IN', 'MataKuliah', mataKuliah);
+      user.mataKuliah = mataKuliah;
+    }
+    
     console.log('[DEBUG] updateProfile raw user result:', user);
     if (user && user.passwordHash) delete user.passwordHash;
     res.json({ data: user });

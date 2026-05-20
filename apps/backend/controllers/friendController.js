@@ -45,11 +45,21 @@ const getPendingRequests = async (req, res) => {
 
 const getFriends = async (req, res) => {
   try {
-    const friends = await friendModel.getFriends(req.userId);
+    const friends = await friendModel.getFriendsList(req.userId);
     res.json({ data: friends });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-module.exports = { addFriend, acceptFriend, rejectFriend, getPendingRequests, getFriends };
+const removeFriend = async (req, res) => {
+  try {
+    const { targetId } = req.body;
+    await friendModel.removeFriend(req.userId, targetId);
+    res.json({ success: true, message: 'Friend removed' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { addFriend, acceptFriend, rejectFriend, getPendingRequests, getFriends, removeFriend };

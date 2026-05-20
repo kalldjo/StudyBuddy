@@ -37,4 +37,13 @@ const recommendBySocialProximity = async (req, res) => {
   }
 };
 
-module.exports = { searchByFilters, recommendByInterest, recommendBySkills, recommendBySocialProximity };
+const recommendProjects = async (req, res) => {
+  try {
+    const data = await recommendationModel.recommendProjectsBySkills(req.userId);
+    res.json({ data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { searchByFilters, recommendByInterest, recommendBySkills, recommendBySocialProximity, recommendProjects };

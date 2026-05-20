@@ -25,7 +25,7 @@ export default function Dashboard() {
   const router = useRouter();
 
   // Tab configurations
-  const [activeCenterTab, setActiveCenterTab] = useState<'feed' | 'discover' | 'projects'>('feed');
+  const [activeCenterTab, setActiveCenterTab] = useState<'feed' | 'discover' | 'projects' | 'opportunities'>('feed');
   const [activeDiscoverTab, setActiveDiscoverTab] = useState<'filters' | 'interests' | 'skills'>('filters');
 
   // Community data states
@@ -189,7 +189,11 @@ export default function Dashboard() {
     setLoadingRecs(true);
     try {
       const response = await apiFetch('/recommend/social');
-      setRecommendedBuddies(response.data || []);
+      const filtered = (response.data || []).filter((item: any) => {
+        const u = item.user || item;
+        return u.id !== currentUser?.id;
+      });
+      setRecommendedBuddies(filtered);
     } catch (e) {
       console.error(e);
     } finally {
@@ -264,7 +268,11 @@ export default function Dashboard() {
         }
 
         const response = await apiFetch(endpoint);
-        setDiscoverUsers(response.data || []);
+        const filtered = (response.data || []).filter((item: any) => {
+          const u = item.user || item;
+          return u.id !== currentUser?.id;
+        });
+        setDiscoverUsers(filtered);
       } catch (error) {
         console.error(error);
         setDiscoverUsers([]);
@@ -443,66 +451,28 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* CAMPUS OPPORTUNITIES BOARD */}
-          <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] rounded-3xl p-5 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[11px] font-extrabold text-[#1D1D1F] tracking-wider uppercase">🎯 Opportunities</h3>
-              <button 
-                onClick={() => setShowOpportunityModal(true)}
-                className="text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 hover:bg-indigo-100/60 transition"
-              >
-                + Add
-              </button>
-            </div>
-            
-            {loadingOpportunities ? (
-              <div className="text-xs text-zinc-400 py-6 text-center animate-pulse">Loading opportunities...</div>
-            ) : opportunities.length === 0 ? (
-              <p className="text-xs text-zinc-400 text-center py-4 italic leading-relaxed">Belum ada oportunitas magang/kerja. Jadilah yang pertama membagikannya!</p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {opportunities.map(op => (
-                  <div key={op.id} className="p-3 bg-white border border-zinc-100 rounded-2xl relative flex flex-col gap-2 shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:scale-[1.01] transition-transform">
-                    <div className="flex items-center gap-2.5">
-                      {/* Logo placeholder */}
-                      <div className={`w-8 h-8 rounded-lg ${op.logoBg || 'bg-[#0E49B5]'} flex items-center justify-center text-[10px] font-extrabold text-white shrink-0`}>
-                        {op.company.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-extrabold text-[#1D1D1F] truncate leading-tight">{op.role}</h4>
-                        <p className="text-[10px] font-medium text-zinc-500 truncate mt-0.5">{op.company}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between border-t border-zinc-50/80 pt-2 mt-1">
-                      <span className="text-[9px] font-semibold text-zinc-400">{op.info}</span>
-                      {op.link ? (
-                        <a 
-                          href={op.link.startsWith('http') ? op.link : `https://${op.link}`}
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-[9px] font-extrabold bg-logo-gradient text-white px-2.5 py-1 rounded-lg hover:opacity-90 transition shadow-sm"
-                        >
-                          Apply
-                        </a>
-                      ) : (
-                        <button 
-                          onClick={() => {
-                            setAppliedRole(`${op.role} at ${op.company}`);
-                            setShowApplyModal(true);
-                          }}
-                          className="text-[9px] font-extrabold bg-zinc-100 hover:bg-zinc-200 text-zinc-600 px-2.5 py-1 rounded-lg transition"
-                        >
-                          Quick Apply
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => window.dispatchEvent(new Event('open-apps-drawer'))}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 hover:opacity-95 text-white font-extrabold text-[10px] tracking-tight shadow-md hover:shadow-lg transition duration-200 text-left mt-2 group"
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 animate-pulse text-yellow-300" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="4" height="4" rx="1" />
+                <rect x="10" y="3" width="4" height="4" rx="1" />
+                <rect x="17" y="3" width="4" height="4" rx="1" />
+                <rect x="3" y="10" width="4" height="4" rx="1" />
+                <rect x="10" y="10" width="4" height="4" rx="1" />
+                <rect x="17" y="10" width="4" height="4" rx="1" />
+                <rect x="3" y="17" width="4" height="4" rx="1" />
+                <rect x="10" y="17" width="4" height="4" rx="1" />
+                <rect x="17" y="17" width="4" height="4" rx="1" />
+              </svg>
+              Explore Premium Tools
+            </span>
+            <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider group-hover:translate-x-0.5 transition-transform duration-200">&rarr;</span>
+          </button>
         </div>
+
 
         {/* CENTER COLUMN: Feed composer + Tabs */}
         <div className="lg:col-span-6 flex flex-col gap-6">
@@ -525,6 +495,12 @@ export default function Dashboard() {
               className={`flex-1 py-2.5 text-center text-sm font-semibold rounded-xl transition ${activeCenterTab === 'projects' ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-[#0071E3]' : 'text-zinc-500 hover:text-[#1D1D1F]'}`}
             >
               Projects
+            </button>
+            <button 
+              onClick={() => setActiveCenterTab('opportunities')}
+              className={`flex-1 py-2.5 text-center text-sm font-semibold rounded-xl transition ${activeCenterTab === 'opportunities' ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-[#0071E3]' : 'text-zinc-500 hover:text-[#1D1D1F]'}`}
+            >
+              Opportunities
             </button>
           </div>
 
@@ -842,6 +818,81 @@ export default function Dashboard() {
                           <a href={item.project.demoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#0071E3] hover:underline">
                             Demo Link &rarr;
                           </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: Opportunities showcase */}
+          {activeCenterTab === 'opportunities' && (
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#1D1D1F] tracking-tight">Campus & Career Opportunities</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Explore and apply for internships, jobs, lab positions, or tutor roles recommended for you.</p>
+                </div>
+
+              </div>
+
+                <button 
+                  onClick={() => setShowOpportunityModal(true)}
+                  className="w-fit text-xs font-bold text-white bg-[#0071E3] hover:opacity-90 rounded-md py-2 px-4 transition shadow-sm"
+                >
+                  + Add Opportunity
+                </button>
+
+              {loadingOpportunities ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-36 bg-white/40 border border-white/40 rounded-3xl" />
+                  ))}
+                </div>
+              ) : opportunities.length === 0 ? (
+                <div className="text-center py-20 bg-white/40 border border-white/40 rounded-3xl text-zinc-400">
+                  Belum ada oportunitas magang/kerja. Jadilah yang pertama membagikannya!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {opportunities.map(op => (
+                    <div key={op.id} className="p-5 bg-white/70 backdrop-blur-xl border border-white/40 rounded-3xl flex flex-col justify-between hover:scale-[1.01] hover:shadow-md transition duration-200 shadow-md hover:-translate-y-0.5">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl ${op.logoBg || 'bg-[#0E49B5]'} flex items-center justify-center text-xs font-extrabold text-white shrink-0`}>
+                            {op.company.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-extrabold text-[#1D1D1F] truncate leading-tight">{op.role}</h4>
+                            <p className="text-xs font-medium text-zinc-500 truncate mt-0.5">{op.company}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-600 mt-4 leading-relaxed line-clamp-2">{op.info}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-zinc-100 pt-4 mt-4">
+                        <span className="text-[10px] font-semibold text-zinc-400">UI Student Verified</span>
+                        {op.link ? (
+                          <a 
+                            href={op.link.startsWith('http') ? op.link : `https://${op.link}`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs font-extrabold bg-[#0071E3] hover:opacity-90 text-white px-4 py-2 rounded-xl transition shadow-sm"
+                          >
+                            Apply Externally &rarr;
+                          </a>
+                        ) : (
+                           <button 
+                             onClick={() => {
+                               setAppliedRole(`${op.role} at ${op.company}`);
+                               setShowApplyModal(true);
+                             }}
+                             className="text-xs font-extrabold bg-indigo-50 border border-indigo-105 hover:bg-indigo-100/80 text-indigo-700 px-4 py-2 rounded-xl transition"
+                           >
+                             Quick Apply
+                           </button>
                         )}
                       </div>
                     </div>

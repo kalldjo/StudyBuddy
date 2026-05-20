@@ -8,6 +8,7 @@ router.use(authMiddleware);
 router.post('/add', friendController.addFriend);
 router.post('/accept', friendController.acceptFriend);
 router.post('/reject', friendController.rejectFriend);
+router.post('/remove', friendController.removeFriend);
 router.get('/requests', friendController.getPendingRequests);
 router.get('/list', friendController.getFriends);
 

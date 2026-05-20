@@ -69,25 +69,35 @@ const getPendingRequests = async (userId) => {
   }
 };
 
-const getFriends = async (userId) => {
+const getFriendsList = async (userId) => {
   const session = getSession();
   try {
     const query = `
-      MATCH (me:User {id: $userId})-[:IS_FRIENDS_WITH]-(friend:User)
-      OPTIONAL MATCH (friend)-[:MAJORS_IN]->(j:Jurusan)
-      OPTIONAL MATCH (friend)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
-      OPTIONAL MATCH (friend)-[:CLASS_OF]->(a:Angkatan)
-      RETURN friend { .*, jurusan: j.name, fakultas: f.name, angkatan: a.year } AS user
+      MATCH (me:User {id: $userId})-[:IS_FRIENDS_WITH]-(target:User)
+      OPTIONAL MATCH (target)-[:MAJORS_IN]->(j:Jurusan)
+      OPTIONAL MATCH (target)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
+      OPTIONAL MATCH (target)-[:CLASS_OF]->(a:Angkatan)
+      RETURN DISTINCT target { .*, jurusan: j.name, fakultas: f.name, angkatan: a.year } AS user
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(record => {
-      const u = record.get('user');
-      if (u) delete u.passwordHash;
-      return u;
-    });
+    return result.records.map(r => r.get('user'));
   } finally {
     await session.close();
   }
 };
 
-module.exports = { addFriendRequest, acceptFriendRequest, rejectFriendRequest, getPendingRequests, getFriends };
+const removeFriend = async (userId, targetId) => {
+  const session = getSession();
+  try {
+    const query = `
+      MATCH (me:User {id: $userId})-[r:IS_FRIENDS_WITH]-(target:User {id: $targetId})
+      DELETE r
+    `;
+    await session.run(query, { userId, targetId });
+    return true;
+  } finally {
+    await session.close();
+  }
+};
+
+module.exports = { addFriendRequest, acceptFriendRequest, rejectFriendRequest, getPendingRequests, getFriendsList, removeFriend };

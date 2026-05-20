@@ -21,9 +21,15 @@ export default function ProfilePage() {
     jurusan: '', 
     angkatan: '' 
   });
+  const [sosmed, setSosmed] = useState({
+    linkedin: '',
+    github: '',
+    instagram: ''
+  });
   
   const [interestsInput, setInterestsInput] = useState('');
   const [skillsInput, setSkillsInput] = useState('');
+  const [mataKuliahInput, setMataKuliahInput] = useState('');
   
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -47,8 +53,14 @@ export default function ProfilePage() {
             jurusan: u.jurusan || '',
             angkatan: u.angkatan ? String(u.angkatan) : ''
           });
+          setSosmed({
+            linkedin: u.linkedin || '',
+            github: u.github || '',
+            instagram: u.instagram || ''
+          });
           setSkillsInput(u.skills ? u.skills.join(', ') : '');
           setInterestsInput(u.interests ? u.interests.join(', ') : '');
+          setMataKuliahInput(u.mataKuliah ? u.mataKuliah.join(', ') : '');
         }
       } catch (err) {
         console.error('Failed to load profile data', err);
@@ -96,9 +108,10 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const mataKuliah = mataKuliahInput.split(',').map(s => s.trim()).filter(Boolean);
       await apiFetch('/users/profile', {
         method: 'PUT',
-        body: JSON.stringify({ ...profile, ...academic })
+        body: JSON.stringify({ ...profile, ...academic, sosmed, mataKuliah })
       });
       
       const interests = interestsInput.split(',').map(s => s.trim()).filter(Boolean);
@@ -173,10 +186,20 @@ export default function ProfilePage() {
       </div>
 
       <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] rounded-3xl p-8 mb-8">
-        <h2 className="text-xl font-medium text-[#1D1D1F] mb-6 tracking-tight">Skills & Interests</h2>
+        <h2 className="text-xl font-medium text-[#1D1D1F] mb-6 tracking-tight">Social Media Links</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <Input label="LinkedIn URL" placeholder="https://linkedin.com/in/..." value={sosmed.linkedin} onChange={e => setSosmed({...sosmed, linkedin: e.target.value})} />
+          <Input label="GitHub URL" placeholder="https://github.com/..." value={sosmed.github} onChange={e => setSosmed({...sosmed, github: e.target.value})} />
+          <Input label="Instagram Handle" placeholder="@username" value={sosmed.instagram} onChange={e => setSosmed({...sosmed, instagram: e.target.value})} />
+        </div>
+      </div>
+
+      <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] rounded-3xl p-8 mb-8">
+        <h2 className="text-xl font-medium text-[#1D1D1F] mb-6 tracking-tight">Skills, Interests & Courses</h2>
         <div className="flex flex-col gap-5">
           <Input label="Skills (comma separated)" placeholder="React, Node.js, Python" value={skillsInput} onChange={e => setSkillsInput(e.target.value)} />
           <Input label="Interests (comma separated)" placeholder="AI, Web Development" value={interestsInput} onChange={e => setInterestsInput(e.target.value)} />
+          <Input label="Mata Kuliah Diambil (comma separated)" placeholder="Sistem Basis Data, RPL" value={mataKuliahInput} onChange={e => setMataKuliahInput(e.target.value)} />
         </div>
       </div>
 

@@ -12,6 +12,7 @@ export default function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
 
   const [showAppsMenu, setShowAppsMenu] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isScholar, setIsScholar] = useState(false);
   
   // Pomodoro timer state
@@ -48,6 +49,12 @@ export default function Navbar() {
     if (saved === 'true') {
       setIsScholar(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleOpenDrawer = () => setShowAppsMenu(true);
+    window.addEventListener('open-apps-drawer', handleOpenDrawer);
+    return () => window.removeEventListener('open-apps-drawer', handleOpenDrawer);
   }, []);
 
   // Pomodoro tick effect
@@ -120,63 +127,85 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="sticky top-4 z-50 mx-auto max-w-6xl w-[95%]">
-        <div className="flex items-center justify-between rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] px-6 py-3 transition-all hover:bg-white/70">
+      <nav className="sticky top-4 z-50 mx-auto max-w-7xl w-full px-4 md:px-6">
+        <div className="flex items-center justify-between rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.03)] px-6 py-2 transition-all hover:bg-white/75">
           <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
             <img 
               src="/logo.png" 
               alt="Study Buddy Logo" 
-              className="h-14 w-auto object-contain transition-all duration-300" 
+              className="h-10 w-auto object-contain transition-all duration-300" 
               style={{ mixBlendMode: 'multiply' }}
             />
           </Link>
           
           {isAuthenticated && (
-            <div className="hidden md:flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-8">
               <NavLink href="/" active={pathname === '/'}>Discover</NavLink>
               <NavLink href="/ai" active={pathname === '/ai'}>AI Studio ✨</NavLink>
               <NavLink href="/academy" active={pathname === '/academy'}>Academy 🎓</NavLink>
-              <NavLink href="/network" active={pathname === '/network'}>My Network</NavLink>
-              <NavLink href="/profile" active={pathname === '/profile'}>My Profile</NavLink>
             </div>
           )}
 
           <div className="flex items-center gap-3 relative">
             {isAuthenticated ? (
-               <div className="flex items-center gap-3">
-                  {/* 9-Dots Launcher */}
-                  <button 
-                    onClick={() => setShowAppsMenu(!showAppsMenu)} 
-                    className={`p-2 rounded-full transition-all relative ${showAppsMenu ? 'bg-logo-gradient text-white' : 'hover:bg-zinc-100 text-zinc-500 hover:text-[#1D1D1F]'}`}
-                    title="Study Buddy Utilities"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <rect x="3" y="3" width="4" height="4" rx="1" />
-                      <rect x="10" y="3" width="4" height="4" rx="1" />
-                      <rect x="17" y="3" width="4" height="4" rx="1" />
-                      <rect x="3" y="10" width="4" height="4" rx="1" />
-                      <rect x="10" y="10" width="4" height="4" rx="1" />
-                      <rect x="17" y="10" width="4" height="4" rx="1" />
-                      <rect x="3" y="17" width="4" height="4" rx="1" />
-                      <rect x="10" y="17" width="4" height="4" rx="1" />
-                      <rect x="17" y="17" width="4" height="4" rx="1" />
-                    </svg>
-                    {timerActive && (
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
-                    )}
-                  </button>
-
-                  <div className="flex flex-col text-right">
-                    <span className="text-sm font-semibold text-zinc-800 hidden sm:inline flex items-center gap-1.5">
-                      {user?.name}
-                      {isScholar && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-logo-gradient text-white shadow-sm" title="Verified Study Buddy Scholar!">
-                          SCHOLAR ✨
-                        </span>
+               <div className="flex items-center gap-3 relative">
+                  {/* Circular Profile Button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowProfileMenu(!showProfileMenu)}
+                      className="flex items-center gap-2 focus:outline-none"
+                    >
+                      {user?.profilePicture ? (
+                        <img src={user.profilePicture} alt={user.name} className="w-9 h-9 rounded-full object-cover border border-black/10 shadow-sm hover:opacity-90 transition" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center font-bold text-sm text-indigo-600 hover:bg-indigo-100 transition">
+                          {user?.name?.charAt(0) || '?'}
+                        </div>
                       )}
-                    </span>
+                    </button>
+
+                    {showProfileMenu && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setShowProfileMenu(false)}
+                        />
+                        <div className="absolute right-0 mt-2.5 w-56 rounded-2xl bg-white border border-zinc-150 shadow-lg py-2 z-20 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <div className="px-4 py-2 border-b border-zinc-100">
+                            <p className="text-xs font-bold text-zinc-800 truncate">{user?.name}</p>
+                            <p className="text-[10px] text-zinc-500 truncate">{user?.jurusan || 'Mahasiswa'}</p>
+                          </div>
+                          <Link
+                            href={`/user/${user?.id}`}
+                            onClick={() => setShowProfileMenu(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-[#0071E3] transition"
+                          >
+                            <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                            My Profile
+                          </Link>
+                          <Link
+                            href="/network"
+                            onClick={() => setShowProfileMenu(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-[#0071E3] transition"
+                          >
+                            <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.97 5.97 0 0 0-.75-2.906m-.182-3.26a3 3 0 1 1-5.349-2.78m0 0a3 3 0 0 1 4.87-2.78m-9.74 0a3 3 0 0 0 5.348 2.78m0 0a3 3 0 0 0-4.87-2.78m-1.47 3.326a3 3 0 0 0-4.682 2.72 8.902 8.902 0 0 0 3.74.477m.079-3.197a5.971 5.971 0 0 0-.75 2.906m6 0a3 3 0 0 1-6 0" /></svg>
+                            My Network
+                          </Link>
+                          <div className="border-t border-zinc-100 my-1" />
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              handleLogout();
+                            }}
+                            className="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition"
+                          >
+                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>
+                            Logout
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <Button variant="secondary" onClick={handleLogout} className="!py-1.5 !px-4 text-xs font-semibold">Logout</Button>
                </div>
             ) : (
                <div className="flex items-center gap-2">

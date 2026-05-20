@@ -57,4 +57,50 @@ const deleteProject = async (req, res) => {
   }
 };
 
-module.exports = { createProject, getProjects, getUserProjects, deleteProject };
+const requestJoin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, message } = req.body;
+    await projectModel.requestJoinProject(req.userId, id, role, message);
+    res.json({ success: true, message: 'Join request sent' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const acceptJoin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { requesterId } = req.body;
+    const success = await projectModel.acceptJoinProject(req.userId, id, requesterId);
+    if (success) {
+      res.json({ success: true, message: 'Request accepted' });
+    } else {
+      res.status(403).json({ error: 'Unauthorized or request not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const rejectJoin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { requesterId } = req.body;
+    await projectModel.rejectJoinProject(req.userId, id, requesterId);
+    res.json({ success: true, message: 'Request rejected' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getRequests = async (req, res) => {
+  try {
+    const requests = await projectModel.getProjectRequests(req.userId);
+    res.json({ data: requests });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { createProject, getProjects, getUserProjects, deleteProject, requestJoin, acceptJoin, rejectJoin, getRequests };

@@ -11,5 +11,6 @@ router.get('/search', recommendationController.searchByFilters);
 router.get('/interests', recommendationController.recommendByInterest);
 router.get('/skills', recommendationController.recommendBySkills);
 router.get('/social', recommendationController.recommendBySocialProximity);
+router.get('/projects', recommendationController.recommendProjects);
 
 module.exports = router;

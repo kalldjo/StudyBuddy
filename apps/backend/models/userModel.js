@@ -1,11 +1,11 @@
 const { getSession } = require('../config/neo4j');
 
-const updateProfile = async (userId, name, bio, profilePicture, fakultas, jurusan, angkatan) => {
+const updateProfile = async (userId, name, bio, profilePicture, fakultas, jurusan, angkatan, sosmed) => {
   const session = getSession();
   try {
     const query = `
       MATCH (u:User {id: $userId})
-      SET u.name = $name, u.bio = $bio, u.profilePicture = $profilePicture
+      SET u.name = $name, u.bio = $bio, u.profilePicture = $profilePicture, u.linkedin = $linkedin, u.github = $github, u.instagram = $instagram
       
       WITH u
       OPTIONAL MATCH (u)-[oldJ:MAJORS_IN]->(:Jurusan)
@@ -40,7 +40,17 @@ const updateProfile = async (userId, name, bio, profilePicture, fakultas, jurusa
       OPTIONAL MATCH (u)-[:CLASS_OF]->(a:Angkatan)
       RETURN u { .*, jurusan: j.name, fakultas: f.name, angkatan: a.year } AS u
     `;
-    const result = await session.run(query, { userId, name, bio, profilePicture, fakultas: fakultas || '', jurusan: jurusan || '', angkatan: angkatan || '' });
+    
+    // safe sosmed extraction
+    const linkedin = sosmed?.linkedin || '';
+    const github = sosmed?.github || '';
+    const instagram = sosmed?.instagram || '';
+
+    const result = await session.run(query, { 
+      userId, name, bio, profilePicture, 
+      fakultas: fakultas || '', jurusan: jurusan || '', angkatan: angkatan || '',
+      linkedin, github, instagram
+    });
     return result.records[0]?.get('u');
   } finally {
     await session.close();
@@ -107,15 +117,17 @@ const getUserProfile = async (targetId, currentUserId) => {
       OPTIONAL MATCH (u)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
       OPTIONAL MATCH (u)-[:CLASS_OF]->(a:Angkatan)
       
-      // Skills and Interests
+      // Skills, Interests, and Mata Kuliah
       OPTIONAL MATCH (u)-[:HAS_SKILL]->(s:Skill)
       WITH u, j, f, a, collect(distinct s.name) AS skills
       OPTIONAL MATCH (u)-[:INTERESTED_IN]->(i:Interest)
       WITH u, j, f, a, skills, collect(distinct i.name) AS interests
+      OPTIONAL MATCH (u)-[:ENROLLED_IN]->(mk:MataKuliah)
+      WITH u, j, f, a, skills, interests, collect(distinct mk.name) AS mataKuliah
       
       // Relationship Status relative to current user
       OPTIONAL MATCH (me:User {id: $currentUserId})
-      WITH u, j, f, a, skills, interests, me,
+      WITH u, j, f, a, skills, interests, mataKuliah, me,
            exists((me)-[:IS_FRIENDS_WITH]-(u)) AS isFriend,
            exists((me)-[:HAS_PENDING_REQUEST]->(u)) AS sentRequest,
            exists((u)-[:HAS_PENDING_REQUEST]->(me)) AS receivedRequest
@@ -126,7 +138,8 @@ const getUserProfile = async (targetId, currentUserId) => {
         fakultas: f.name,
         angkatan: a.year,
         skills: skills,
-        interests: interests
+        interests: interests,
+        mataKuliah: mataKuliah
       } AS user,
       CASE
         WHEN $currentUserId = u.id THEN 'self'
