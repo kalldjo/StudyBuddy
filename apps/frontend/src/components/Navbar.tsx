@@ -143,6 +143,7 @@ export default function Navbar() {
               <NavLink href="/" active={pathname === '/'}>Discover</NavLink>
               <NavLink href="/ai" active={pathname === '/ai'}>AI Studio ✨</NavLink>
               <NavLink href="/academy" active={pathname === '/academy'}>Academy 🎓</NavLink>
+              <NavLink href="/search" active={pathname === '/search'}>Search</NavLink>
             </div>
           )}
 

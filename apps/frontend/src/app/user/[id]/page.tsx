@@ -495,7 +495,9 @@ export default function UserProfileViewer() {
                 </Link>
 
                 <button 
-                  onClick={() => { router.push('/'); }} 
+                  onClick={() => { 
+                    router.push('/?tab=discover'); 
+                  }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition text-left"
                 >
                   <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
