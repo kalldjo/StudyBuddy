@@ -1,4 +1,4 @@
-const { getSession } = require('../config/neo4j');
+const { getSession } = require("../config/neo4j");
 
 const createProject = async (userId, id, title, description, imageUrl, demoUrl, skills) => {
   const session = getSession();
@@ -29,11 +29,49 @@ const createProject = async (userId, id, title, description, imageUrl, demoUrl, 
       id,
       title,
       description,
-      imageUrl: imageUrl || '',
-      demoUrl: demoUrl || '',
-      skills: skills || []
+      imageUrl: imageUrl || "",
+      demoUrl: demoUrl || "",
+      skills: skills || [],
     });
-    return result.records[0]?.get('project');
+    return result.records[0]?.get("project");
+  } finally {
+    await session.close();
+  }
+};
+
+const updateProject = async (userId, projectId, title, description, imageUrl, demoUrl, skills) => {
+  const session = getSession();
+  try {
+    const query = `
+      MATCH (u:User {id: $userId})-[:CREATED_PROJECT]->(pr:Project {id: $projectId})
+      SET pr.title = $title,
+          pr.description = $description,
+          pr.imageUrl = $imageUrl,
+          pr.demoUrl = $demoUrl
+      
+      WITH pr, u
+      // Remove old skills
+      OPTIONAL MATCH (pr)-[r:USES_SKILL]->()
+      DELETE r
+      
+      WITH pr
+      FOREACH (skillName IN $skills |
+        MERGE (s:Skill {name: skillName})
+        MERGE (pr)-[:USES_SKILL]->(s)
+      )
+      
+      RETURN pr { .*, skills: $skills } AS project
+    `;
+    const result = await session.run(query, {
+      userId,
+      projectId,
+      title,
+      description,
+      imageUrl: imageUrl || "",
+      demoUrl: demoUrl || "",
+      skills: skills || [],
+    });
+    return result.records[0]?.get("project");
   } finally {
     await session.close();
   }
@@ -47,15 +85,15 @@ const getProjects = async () => {
       OPTIONAL MATCH (author)-[:MAJORS_IN]->(j:Jurusan)
       OPTIONAL MATCH (pr)-[:USES_SKILL]->(s:Skill)
       WITH pr, author, j, collect(s.name) AS skills
-      RETURN pr { .*, skills: skills } AS project,
+      RETURN pr { .*, skills: [x IN skills WHERE x IS NOT NULL] } AS project,
              author { .*, passwordHash: null, jurusan: j.name } AS author
       ORDER BY pr.createdAt DESC
       LIMIT 100
     `;
     const result = await session.run(query);
-    return result.records.map(record => ({
-      project: record.get('project'),
-      author: record.get('author')
+    return result.records.map((record) => ({
+      project: record.get("project"),
+      author: record.get("author"),
     }));
   } finally {
     await session.close();
@@ -69,11 +107,11 @@ const getUserProjects = async (userId) => {
       MATCH (u:User {id: $userId})-[:CREATED_PROJECT]->(pr:Project)
       OPTIONAL MATCH (pr)-[:USES_SKILL]->(s:Skill)
       WITH pr, collect(s.name) AS skills
-      RETURN pr { .*, skills: skills } AS project
+      RETURN pr { .*, skills: [x IN skills WHERE x IS NOT NULL] } AS project
       ORDER BY pr.createdAt DESC
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(record => record.get('project'));
+    return result.records.map((record) => record.get("project"));
   } finally {
     await session.close();
   }
@@ -104,7 +142,7 @@ const requestJoinProject = async (userId, projectId, role, message) => {
       SET r.role = $role, r.message = $message, r.createdAt = toString(datetime())
       RETURN r
     `;
-    await session.run(query, { userId, projectId, role: role || '', message: message || '' });
+    await session.run(query, { userId, projectId, role: role || "", message: message || "" });
     return true;
   } finally {
     await session.close();
@@ -155,10 +193,10 @@ const getProjectRequests = async (userId) => {
       RETURN req { .*, projectId: p.id, projectTitle: p.title, requesterId: requester.id, requesterName: requester.name } AS request
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(r => r.get('request'));
+    return result.records.map((r) => r.get("request"));
   } finally {
     await session.close();
   }
 };
 
-module.exports = { createProject, getProjects, getUserProjects, deleteProject, requestJoinProject, acceptJoinProject, rejectJoinProject, getProjectRequests };
+module.exports = { createProject, updateProject, getProjects, getUserProjects, deleteProject, requestJoinProject, acceptJoinProject, rejectJoinProject, getProjectRequests };

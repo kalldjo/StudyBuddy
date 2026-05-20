@@ -1,6 +1,6 @@
-const { getSession } = require('../config/neo4j');
+const { getSession } = require("../config/neo4j");
 
-const searchByFilters = async (currentUserId, fakultas, jurusan, angkatan) => {
+const searchByFilters = async (currentUserId, name, fakultas, jurusan, angkatan) => {
   const session = getSession();
   try {
     const query = `
@@ -12,7 +12,8 @@ const searchByFilters = async (currentUserId, fakultas, jurusan, angkatan) => {
       
       WITH u, j, f, a
       WHERE 
-        ($jurusan = 'Semua' OR $jurusan = '' OR $jurusan IS NULL OR toLower(j.name) CONTAINS toLower($jurusan))
+        ($name = '' OR $name IS NULL OR toLower(u.name) CONTAINS toLower($name))
+        AND ($jurusan = 'Semua' OR $jurusan = '' OR $jurusan IS NULL OR toLower(j.name) CONTAINS toLower($jurusan))
         AND ($fakultas = 'Semua' OR $fakultas = '' OR $fakultas IS NULL OR toLower(f.name) CONTAINS toLower($fakultas))
         AND ($angkatan = 'Semua' OR $angkatan = '' OR $angkatan IS NULL OR toLower(toString(a.year)) CONTAINS toLower(toString($angkatan)))
       
@@ -43,22 +44,23 @@ const searchByFilters = async (currentUserId, fakultas, jurusan, angkatan) => {
         ELSE 'none'
       END AS connectionStatus
     `;
-    
+
     const params = {
-      currentUserId: currentUserId || '',
+      currentUserId: currentUserId || "",
+      name: name || null,
       fakultas: fakultas || null,
       jurusan: jurusan || null,
-      angkatan: angkatan || null
+      angkatan: angkatan || null,
     };
-    
+
     const result = await session.run(query, params);
-    return result.records.map(record => {
-      const user = record.get('user');
-      const connectionStatus = record.get('connectionStatus');
+    return result.records.map((record) => {
+      const user = record.get("user");
+      const connectionStatus = record.get("connectionStatus");
       if (user) delete user.passwordHash;
       return {
         user,
-        connectionStatus
+        connectionStatus,
       };
     });
   } finally {
@@ -72,20 +74,28 @@ const recommendByInterest = async (userId) => {
     const query = `
       MATCH (me:User {id: $userId})-[:INTERESTED_IN]->(myInt:Interest)
       MATCH (other:User)-[:INTERESTED_IN]->(otherInt:Interest)
-      WHERE me.id <> other.id AND toLower(myInt.name) = toLower(otherInt.name)
+      WHERE me.id <> other.id
+        AND toLower(myInt.name) = toLower(otherInt.name)
+        AND NOT (me)-[:IS_FRIENDS_WITH]-(other)
+        AND NOT (me)-[:HAS_PENDING_REQUEST]-(other)
+      WITH me, other, count(distinct otherInt) AS mutualInterests
       OPTIONAL MATCH (other)-[:MAJORS_IN]->(j:Jurusan)
       OPTIONAL MATCH (other)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
       OPTIONAL MATCH (other)-[:CLASS_OF]->(a:Angkatan)
-      RETURN other { .*, jurusan: j.name, fakultas: f.name, angkatan: a.year } AS other, count(otherInt) AS mutualInterests
+      RETURN other { .*, jurusan: j.name, fakultas: f.name, angkatan: a.year } AS other,
+             mutualInterests
       ORDER BY mutualInterests DESC
+      LIMIT 20
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(record => {
-      const user = record.get('other');
+    return result.records.map((record) => {
+      const user = record.get("other");
       if (user) delete user.passwordHash;
       return {
         user,
-        mutualInterests: record.get('mutualInterests').toNumber()
+        connectionStatus: "none",
+        mutualInterests: record.get("mutualInterests").toNumber(),
+        matchReason: `${record.get("mutualInterests").toNumber()} shared interest(s)`,
       };
     });
   } finally {
@@ -99,7 +109,11 @@ const recommendBySkills = async (userId) => {
     const query = `
       MATCH (me:User {id: $userId})-[:HAS_SKILL]->(mySkill:Skill)
       MATCH (other:User)-[:HAS_SKILL]->(otherSkill:Skill)
-      WHERE me.id <> other.id AND toLower(mySkill.name) = toLower(otherSkill.name)
+      WHERE me.id <> other.id
+        AND toLower(mySkill.name) = toLower(otherSkill.name)
+        AND NOT (me)-[:IS_FRIENDS_WITH]-(other)
+        AND NOT (me)-[:HAS_PENDING_REQUEST]-(other)
+      WITH me, other, count(distinct otherSkill) AS mutualSkillsCount
       OPTIONAL MATCH (other)-[:MAJORS_IN]->(j:Jurusan)
       OPTIONAL MATCH (other)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
       OPTIONAL MATCH (other)-[:CLASS_OF]->(a:Angkatan)
@@ -108,16 +122,19 @@ const recommendBySkills = async (userId) => {
         jurusan: j.name, 
         fakultas: f.name, 
         angkatan: a.year 
-      } AS other, count(otherSkill) AS mutualSkillsCount
+      } AS other, mutualSkillsCount
       ORDER BY mutualSkillsCount DESC
+      LIMIT 20
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(record => {
-      const user = record.get('other');
+    return result.records.map((record) => {
+      const user = record.get("other");
       if (user) delete user.passwordHash;
       return {
         user,
-        mutualSkillsCount: record.get('mutualSkillsCount').toNumber()
+        connectionStatus: "none",
+        mutualSkillsCount: record.get("mutualSkillsCount").toNumber(),
+        matchReason: `${record.get("mutualSkillsCount").toNumber()} shared skill(s)`,
       };
     });
   } finally {
@@ -159,11 +176,13 @@ const recommendBySocialProximity = async (userId) => {
            count(distinct s) AS mutualSkillsCount,
            count(distinct i) AS mutualInterestsCount
 
-      // Calculate final score
+      // Calculate final score — more diverse weights so non-major signals still surface
       WITH other, 
-           (mutualFriendsCount * 10 + sameJurusan * 5 + sameFakultas * 3 + sameAngkatan * 2 + mutualSkillsCount * 4 + mutualInterestsCount * 3) AS score,
+           (mutualFriendsCount * 10 + sameJurusan * 4 + sameFakultas * 3 + sameAngkatan * 3 + mutualSkillsCount * 5 + mutualInterestsCount * 4) AS score,
            mutualFriendsCount, sameJurusan, sameFakultas, sameAngkatan, mutualSkillsCount, mutualInterestsCount
-      WHERE score > 0
+
+      // Allow anyone with at least ONE signal (including just same faculty/angkatan)
+      WHERE (mutualFriendsCount + sameJurusan + sameFakultas + sameAngkatan + mutualSkillsCount + mutualInterestsCount) > 0
 
       // Fetch other user's display properties
       OPTIONAL MATCH (other)-[:MAJORS_IN]->(j:Jurusan)
@@ -171,43 +190,45 @@ const recommendBySocialProximity = async (userId) => {
       OPTIONAL MATCH (other)-[:CLASS_OF]->(a:Angkatan)
 
       RETURN other { 
-               .*, 
-               jurusan: j.name, 
-               fakultas: f.name, 
-               angkatan: a.year 
-             } AS other, 
-             score, 
-             mutualFriendsCount, 
-             mutualSkillsCount, 
-             mutualInterestsCount,
-             sameJurusan,
-             sameFakultas,
-             sameAngkatan
+                 .*, 
+                 jurusan: j.name, 
+                 fakultas: f.name, 
+                 angkatan: a.year 
+               } AS other, 
+               score, 
+               mutualFriendsCount, 
+               mutualSkillsCount, 
+               mutualInterestsCount,
+               sameJurusan,
+               sameFakultas,
+               sameAngkatan
       ORDER BY score DESC
-      LIMIT 12
+      LIMIT 15
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(record => {
-      const user = record.get('other');
+    return result.records.map((record) => {
+      const user = record.get("other");
       if (user) delete user.passwordHash;
-      
-      const mutualFriends = record.get('mutualFriendsCount').toNumber();
-      const mutualSkills = record.get('mutualSkillsCount').toNumber();
-      const mutualInterests = record.get('mutualInterestsCount').toNumber();
-      const isSameJurusan = record.get('sameJurusan').toNumber() > 0;
-      const isSameFakultas = record.get('sameFakultas').toNumber() > 0;
-      
+
+      const mutualFriends = record.get("mutualFriendsCount").toNumber();
+      const mutualSkills = record.get("mutualSkillsCount").toNumber();
+      const mutualInterests = record.get("mutualInterestsCount").toNumber();
+      const isSameJurusan = record.get("sameJurusan").toNumber() > 0;
+      const isSameFakultas = record.get("sameFakultas").toNumber() > 0;
+      const isSameAngkatan = record.get("sameAngkatan").toNumber() > 0;
+
       let reasons = [];
-      if (mutualFriends > 0) reasons.push(`${mutualFriends} mutual friends`);
-      if (mutualSkills > 0) reasons.push(`${mutualSkills} shared skills`);
-      if (mutualInterests > 0) reasons.push(`${mutualInterests} shared interests`);
-      if (isSameJurusan) reasons.push(`Same Major`);
-      else if (isSameFakultas) reasons.push(`Same Faculty`);
-      
+      if (mutualFriends > 0) reasons.push(`${mutualFriends} mutual friend${mutualFriends > 1 ? "s" : ""}`);
+      if (mutualSkills > 0) reasons.push(`${mutualSkills} shared skill${mutualSkills > 1 ? "s" : ""}`);
+      if (mutualInterests > 0) reasons.push(`${mutualInterests} shared interest${mutualInterests > 1 ? "s" : ""}`);
+      if (isSameJurusan) reasons.push("Same major");
+      else if (isSameFakultas) reasons.push("Same faculty");
+      if (isSameAngkatan) reasons.push("Same year");
+
       return {
         user,
-        weight: record.get('score').toNumber(),
-        matchReason: reasons.join(' • ') || 'Academic similarity'
+        weight: record.get("score").toNumber(),
+        matchReason: reasons.join(" · ") || "From your campus",
       };
     });
   } finally {
@@ -221,17 +242,21 @@ const recommendProjectsBySkills = async (userId) => {
     const query = `
       MATCH (me:User {id: $userId})-[:HAS_SKILL]->(mySkill:Skill)
       MATCH (p:Project)-[:USES_SKILL]->(projSkill:Skill)
-      WHERE p.status = 'ongoing' AND toLower(mySkill.name) = toLower(projSkill.name)
-      // Ensure I'm not the creator and haven't joined yet
-      AND NOT (me)-[:CREATED_PROJECT|JOINED_PROJECT]->(p)
+      WHERE toLower(mySkill.name) = toLower(projSkill.name)
+        AND NOT (me)-[:CREATED_PROJECT|JOINED_PROJECT]->(p)
       MATCH (author:User)-[:CREATED_PROJECT]->(p)
-      RETURN p { .*, authorId: author.id, authorName: author.name } AS project, count(projSkill) AS matchingSkills
+      WITH p, author, count(distinct projSkill) AS matchingSkills
+      RETURN p { .*, authorId: author.id, authorName: author.name } AS project,
+             author { .id, .name, .profilePicture, .jurusan } AS author,
+             matchingSkills
       ORDER BY matchingSkills DESC
+      LIMIT 10
     `;
     const result = await session.run(query, { userId });
-    return result.records.map(record => ({
-      project: record.get('project'),
-      matchingSkills: record.get('matchingSkills').toNumber()
+    return result.records.map((record) => ({
+      project: record.get("project"),
+      author: record.get("author"),
+      matchingSkills: record.get("matchingSkills").toNumber(),
     }));
   } finally {
     await session.close();
@@ -243,5 +268,5 @@ module.exports = {
   recommendByInterest,
   recommendBySkills,
   recommendBySocialProximity,
-  recommendProjectsBySkills
+  recommendProjectsBySkills,
 };

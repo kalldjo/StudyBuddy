@@ -1,9 +1,9 @@
-const recommendationModel = require('../models/recommendationModel');
+const recommendationModel = require("../models/recommendationModel");
 
 const searchByFilters = async (req, res) => {
   try {
-    const { fakultas, jurusan, angkatan } = req.query;
-    const data = await recommendationModel.searchByFilters(req.userId, fakultas, jurusan, angkatan);
+    const { name, fakultas, jurusan, angkatan } = req.query;
+    const data = await recommendationModel.searchByFilters(req.userId, name, fakultas, jurusan, angkatan);
     res.json({ data });
   } catch (error) {
     res.status(500).json({ error: error.message });
