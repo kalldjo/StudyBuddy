@@ -15,6 +15,8 @@ const chatRoutes = require('./routes/chatRoutes');
 const opportunityRoutes = require('./routes/opportunityRoutes');
 const academyRoutes = require('./routes/academyRoutes');
 const debugRoutes = require('./routes/debugRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const playgroundRoutes = require('./routes/playgroundRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -48,7 +50,36 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/opportunities', opportunityRoutes);
 app.use('/api/academy', academyRoutes);
 app.use('/api/debug', debugRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/playground', playgroundRoutes);
 
-app.listen(PORT, () => {
-  console.log(`[backend] server running on port ${PORT}`);
+// wrap server for socket.io
+const http = require('http');
+const { Server } = require('socket.io');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    credentials: true
+  }
+});
+
+// share globally biar gampang diakses dari controller mana aja
+global.io = io;
+
+io.on('connection', (socket) => {
+  const userId = socket.handshake.query.userId;
+  if (userId) {
+    socket.join(userId);
+    console.log(`[socket] user ${userId} joined room ${userId}`);
+  }
+  
+  socket.on('disconnect', () => {
+    console.log(`[socket] socket ${socket.id} disconnected`);
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`[backend] server running on port ${PORT} with socket.io support`);
 });

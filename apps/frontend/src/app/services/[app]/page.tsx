@@ -3,16 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiFetch } from '@/utils/api';
+
 
 // INTERFACES & TYPES
-interface Textbook {
-  id: string;
-  title: string;
-  price: number;
-  course: string;
-  contact: string;
-  condition: string;
-}
 
 interface Circle {
   id: string;
@@ -28,13 +22,6 @@ interface GroupMessage {
   time: string;
 }
 
-interface Expense {
-  id: string;
-  description: string;
-  amount: number;
-  paidBy: string;
-  splitWith: string[];
-}
 
 interface Job {
   id: string;
@@ -53,14 +40,6 @@ interface ServiceOffer {
   rating: number;
 }
 
-interface EventAd {
-  id: string;
-  title: string;
-  subtitle: string;
-  date: string;
-  price: string;
-  theme: string;
-}
 
 interface Flashcard {
   id: string;
@@ -79,17 +58,9 @@ interface CourseGrade {
 export default function ServicesPage() {
   const router = useRouter();
   const params = useParams();
-  const activeApp = (params?.app as string) || 'jual';
+  const activeApp = (params?.app as string) || 'gpa-calculator';
 
-  // State configurations for all 15 apps
-  // 1. Marketplace State
-  const [textbooks, setTextbooks] = useState<Textbook[]>([
-    { id: '1', title: 'Sistem Basis Data Kuno', price: 150000, course: 'SBD UI', contact: '08123456789', condition: 'Like New' },
-    { id: '2', title: 'Cypher Query Mastery guide', price: 85000, course: 'SBD UI', contact: '08987654321', condition: 'Good' },
-    { id: '3', title: 'Advanced Calculus Vol 2', price: 210000, course: 'Matematika II', contact: '08221122334', condition: 'Moderate' }
-  ]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [newBook, setNewBook] = useState({ title: '', price: '', course: '', contact: '', condition: 'Like New' });
+  // State configurations for remaining apps
 
   // 2. Study Circles State
   const [circles, setCircles] = useState<Circle[]>([
@@ -111,12 +82,6 @@ export default function ServicesPage() {
   });
   const [typedMessage, setTypedMessage] = useState('');
 
-  // 3. Dorm Split Ledger State
-  const [expenses, setExpenses] = useState<Expense[]>([
-    { id: '1', description: 'Cetak Laporan SBD', amount: 45000, paidBy: 'Anda', splitWith: ['Anda', 'Diva', 'Coki'] },
-    { id: '2', description: 'Sewa Server Neo4j Aura', amount: 150000, paidBy: 'Diva', splitWith: ['Anda', 'Diva'] }
-  ]);
-  const [newExpense, setNewExpense] = useState({ description: '', amount: '', paidBy: 'Anda', splitDiva: true, splitCoki: true, splitAnda: true });
 
   // 4. Career Talent Insights Dashboard data (static but responsive)
   const skillsDemand = [
@@ -140,11 +105,6 @@ export default function ServicesPage() {
     { id: '2', title: 'Coding Bootcamp ExpressJS & Cypher', provider: 'Coki (Lab Asst)', rate: 'Rp 75.000 / Sesi', rating: 4.8 }
   ]);
 
-  // 7. Event Campaign banner creator State
-  const [eventAds, setEventAds] = useState<EventAd[]>([
-    { id: '1', title: 'Finpro SBD Exhibition', subtitle: 'Pameran Karya Mahasiswa SBD UI', date: '25 Juni 2026', price: 'Free', theme: 'Sunset' }
-  ]);
-  const [newAd, setNewAd] = useState({ title: 'Workshop Cypher Baru', subtitle: 'Mahir Kueri Graf dalam 1 Hari', date: '30 Mei 2026', price: 'Rp 25.000', theme: 'Ocean' });
 
   // 8. Video Lecture Studio State
   const [activeChapter, setActiveChapter] = useState(0);
@@ -167,31 +127,25 @@ export default function ServicesPage() {
   const [summaryOutput, setSummaryOutput] = useState<{ concept: string; bullets: string[] } | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
-  // 11. Spaced-Repetition Flashcards State
+  // 11. Spaced-Repetition Flashcards State — load dari backend
   const [flashcards, setFlashcards] = useState<Flashcard[]>([
-    { id: '1', question: 'Apa perbedaan utama antara RDBMS dengan Graph Database?', answer: 'RDBMS menggunakan foreign keys dan JOIN tables yang lambat pada relasi kompleks, sedangkan Graph Database menyimpan relasi secara direct pointer (traversal cepat).' },
-    { id: '2', question: 'Sebutkan 6 fase penting di CRISP-DM!', answer: '1. Business Understanding, 2. Data Understanding, 3. Data Preparation, 4. Modeling, 5. Evaluation, 6. Deployment.' },
-    { id: '3', question: 'Kapan skema database dinyatakan dalam bentuk 3NF?', answer: 'Jika telah memenuhi 2NF dan tidak memiliki ketergantungan transitif (transitive dependency) pada primary key.' }
+    { id: 'default-1', question: 'Apa perbedaan utama antara RDBMS dengan Graph Database?', answer: 'RDBMS menggunakan foreign keys dan JOIN tables yang lambat pada relasi kompleks, sedangkan Graph Database menyimpan relasi secara direct pointer (traversal cepat).' },
+    { id: 'default-2', question: 'Sebutkan 6 fase penting di CRISP-DM!', answer: '1. Business Understanding, 2. Data Understanding, 3. Data Preparation, 4. Modeling, 5. Evaluation, 6. Deployment.' },
   ]);
   const [currentCardIdx, setCurrentCardIdx] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
   const [reviewedCardsCount, setReviewedCardsCount] = useState(0);
+  const [newCardQuestion, setNewCardQuestion] = useState('');
+  const [newCardAnswer, setNewCardAnswer] = useState('');
+  const [showAddCardForm, setShowAddCardForm] = useState(false);
 
-  // 12. GPA Tracker State
-  const [grades, setGrades] = useState<CourseGrade[]>([
-    { id: '1', name: 'Sistem Basis Data (SBD)', credits: 4, grade: 'A' },
-    { id: '2', name: 'Matematika Diskret', credits: 3, grade: 'A-' },
-    { id: '3', name: 'Algoritma & Pemrograman', credits: 4, grade: 'B+' }
-  ]);
+  // 12. GPA Tracker State — load dari backend
+  const [grades, setGrades] = useState<CourseGrade[]>([]);
   const [newCourseName, setNewCourseName] = useState('');
   const [newCourseCredits, setNewCourseCredits] = useState('3');
   const [newCourseGrade, setNewCourseGrade] = useState('A');
   const [targetGPA, setTargetGPA] = useState(3.8);
 
-  // 13. Lofi Lounge Audio Ambient State
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [lofiTrack, setLofiTrack] = useState<'beats' | 'rain' | 'binaural'>('beats');
-  const [audioVolume, setAudioVolume] = useState(70);
 
   // 14. Graph Classmate Matchmaker State
   const classmates = [
@@ -200,26 +154,141 @@ export default function ServicesPage() {
     { name: 'Jo Kalldjo', overlapScore: 78, classes: ['SBD', 'Sistem Operasi'], freeHours: '16:00 - 18:00', phone: '628221122334' }
   ];
 
-  // 15. Gantt Milestones State
-  const examDate = new Date();
-  examDate.setDate(examDate.getDate() + 14); // Countdown to 2 weeks from now
+  // 15. Custom Reminders System State
+  interface Reminder {
+    id: string;
+    title: string;
+    date: string;
+    priority: 'HIGH' | 'MID' | 'LOW';
+  }
+
+  const [reminders, setReminders] = useState<Reminder[]>([
+    { id: '1', title: 'Final Project SBD UI (Normalisasi & Cypher Setup)', date: new Date(Date.now() + 86400000).toISOString().split('T')[0], priority: 'HIGH' },
+    { id: '2', title: 'Evaluasi CRISP-DM & Data Preparation', date: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], priority: 'MID' }
+  ]);
+  const [newReminderTitle, setNewReminderTitle] = useState('');
+  const [newReminderDate, setNewReminderDate] = useState('');
+  const [newReminderPriority, setNewReminderPriority] = useState<'HIGH' | 'MID' | 'LOW'>('HIGH');
   const [timeLeft, setTimeLeft] = useState('');
+
+  const handleAddReminder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReminderTitle.trim() || !newReminderDate) return;
+    const item: Reminder = {
+      id: Date.now().toString(),
+      title: newReminderTitle.trim(),
+      date: newReminderDate,
+      priority: newReminderPriority
+    };
+    setReminders([...reminders, item]);
+    setNewReminderTitle('');
+    setNewReminderDate('');
+  };
+
+  const handleDeleteReminder = (id: string) => {
+    setReminders(reminders.filter(r => r.id !== id));
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const difference = +examDate - +new Date();
-      if (difference <= 0) {
-        setTimeLeft('SEKARANG EXAM! 🔥');
-      } else {
-        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-        const minutes = Math.floor((difference / 1000 / 60) % 60);
-        const seconds = Math.floor((difference / 1000) % 60);
-        setTimeLeft(`${days} Hari ${hours} Jam ${minutes} Menit ${seconds} Detik`);
+      if (reminders.length === 0) {
+        setTimeLeft('No schedules added');
+        return;
       }
+      
+      const now = new Date().getTime();
+      const sortedFutureReminders = reminders
+        .map(r => ({ ...r, time: new Date(r.date + 'T23:59:59').getTime() }))
+        .filter(r => r.time > now)
+        .sort((a, b) => a.time - b.time);
+
+      if (sortedFutureReminders.length === 0) {
+        setTimeLeft('All schedules passed! 🔥');
+        return;
+      }
+
+      const closest = sortedFutureReminders[0];
+      const difference = closest.time - now;
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((difference / 1000 / 60) % 60);
+      const seconds = Math.floor((difference / 1000) % 60);
+      
+      setTimeLeft(`Countdown to "${closest.title}": ${days}d ${hours}h ${minutes}m ${seconds}s`);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [reminders]);
+
+  // Sinkronisasi status lamaran karir riil dengan Neo4j
+  useEffect(() => {
+    if (activeApp === 'posting-pekerjaan') {
+      const syncJobApplications = async () => {
+        try {
+          const response = await apiFetch('/opportunities');
+          const opps = response.data || [];
+          setJobs(prevJobs => prevJobs.map(j => {
+            const matchedOpp = opps.find((o: any) => o.id === j.id);
+            if (matchedOpp) {
+              return {
+                ...j,
+                applied: matchedOpp.hasApplied
+              };
+            }
+            return j;
+          }));
+        } catch (err) {
+          console.error('Failed to sync job applications:', err);
+        }
+      };
+      syncJobApplications();
+    }
+  }, [activeApp]);
+
+  // Fetch GPA grades dari backend saat buka app
+  useEffect(() => {
+    if (activeApp === 'gpa-calculator') {
+      const fetchGrades = async () => {
+        try {
+          const res = await apiFetch('/playground/grades');
+          if (res.data && res.data.length > 0) {
+            setGrades(res.data.map((g: any) => ({
+              id: g.id,
+              name: g.courseName,
+              credits: typeof g.credits === 'object' ? g.credits.low : g.credits,
+              grade: g.grade
+            })));
+          }
+        } catch (err) {
+          console.error('Failed to fetch GPA grades:', err);
+        }
+      };
+      fetchGrades();
+    }
+  }, [activeApp]);
+
+  // Fetch flashcards dari backend saat buka app
+  useEffect(() => {
+    if (activeApp === 'flashcards') {
+      const fetchCards = async () => {
+        try {
+          const res = await apiFetch('/playground/flashcards');
+          if (res.data && res.data.length > 0) {
+            setFlashcards(res.data.map((f: any) => ({
+              id: f.id,
+              question: f.question,
+              answer: f.answer,
+              difficulty: f.difficulty || 'medium'
+            })));
+          }
+        } catch (err) {
+          console.error('Failed to fetch flashcards:', err);
+        }
+      };
+      fetchCards();
+    }
+  }, [activeApp]);
+
 
   // WHITEBOARD LOGIC (HTML5 CANVAS DRAWING)
   useEffect(() => {
@@ -281,21 +350,7 @@ export default function ServicesPage() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  // APP 1: Textbook submit
-  const handleAddBook = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newBook.title || !newBook.price) return;
-    const item: Textbook = {
-      id: Date.now().toString(),
-      title: newBook.title,
-      price: parseFloat(newBook.price) || 0,
-      course: newBook.course || 'SBD UI',
-      contact: newBook.contact || '08123456789',
-      condition: newBook.condition
-    };
-    setTextbooks([item, ...textbooks]);
-    setNewBook({ title: '', price: '', course: '', contact: '', condition: 'Like New' });
-  };
+
 
   // APP 2: Circles Chat & Join
   const handleJoinCircle = (id: string) => {
@@ -329,71 +384,32 @@ export default function ServicesPage() {
     }, 1500);
   };
 
-  // APP 3: Expenses Calculations
-  const handleAddExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newExpense.description || !newExpense.amount) return;
-    const splitArr = [];
-    if (newExpense.splitAnda) splitArr.push('Anda');
-    if (newExpense.splitDiva) splitArr.push('Diva');
-    if (newExpense.splitCoki) splitArr.push('Coki');
 
-    const item: Expense = {
-      id: Date.now().toString(),
-      description: newExpense.description,
-      amount: parseFloat(newExpense.amount) || 0,
-      paidBy: newExpense.paidBy,
-      splitWith: splitArr
-    };
-
-    setExpenses([item, ...expenses]);
-    setNewExpense({ description: '', amount: '', paidBy: 'Anda', splitDiva: true, splitCoki: true, splitAnda: true });
-  };
-
-  const getDormBalances = () => {
-    let andaOwes = 0;
-    let othersOweAnda = 0;
-
-    expenses.forEach(exp => {
-      const perPerson = exp.amount / exp.splitWith.length;
-      if (exp.paidBy === 'Anda') {
-        const othersCount = exp.splitWith.filter(name => name !== 'Anda').length;
-        othersOweAnda += perPerson * othersCount;
-      } else {
-        if (exp.splitWith.includes('Anda')) {
-          andaOwes += perPerson;
-        }
-      }
-    });
-
-    return { andaOwes, othersOweAnda };
-  };
 
   // APP 5: Assistant Job apply
-  const handleApplyJob = (e: React.FormEvent) => {
+  const handleApplyJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!applyModalJob) return;
-    setJobs(jobs.map(j => j.id === applyModalJob.id ? { ...j, applied: true, slots: Math.max(0, j.slots - 1) } : j));
-    setApplyModalJob(null);
-    setApplyText({ studentId: '', coverLetter: '' });
-    alert('🎉 Lamaran sukses dikirim ke database Riset Laboratorium!');
+    try {
+      await apiFetch(`/opportunities/${applyModalJob.id}/apply`, {
+        method: 'POST',
+        body: JSON.stringify({
+          studentId: applyText.studentId,
+          coverLetter: applyText.coverLetter
+        })
+      });
+      setJobs(jobs.map(j => j.id === applyModalJob.id ? { ...j, applied: true, slots: Math.max(0, j.slots - 1) } : j));
+      setApplyModalJob(null);
+      setApplyText({ studentId: '', coverLetter: '' });
+      alert('🎉 Lamaran sukses dikirim ke database Riset Laboratorium!');
+    } catch (err) {
+      console.error('Gagal mengirimkan lamaran:', err);
+      alert('Gagal mengirimkan lamaran pekerjaan');
+    }
   };
 
-  // APP 7: Create Custom Event Banner
-  const handleCreateAd = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAd.title || !newAd.subtitle) return;
-    const item: EventAd = {
-      id: Date.now().toString(),
-      title: newAd.title,
-      subtitle: newAd.subtitle,
-      date: newAd.date,
-      price: newAd.price,
-      theme: newAd.theme
-    };
-    setEventAds([item, ...eventAds]);
-    alert('🎨 Banner promosi kampus berhasil dipublikasikan!');
-  };
+
+
 
   // APP 8: Video Player notes taking
   const handleAddNote = (e: React.FormEvent) => {
@@ -421,18 +437,75 @@ export default function ServicesPage() {
     }, 1500);
   };
 
-  // APP 12: GPA Projection calculator
-  const handleAddGrade = (e: React.FormEvent) => {
+  // APP 12: GPA simpan ke database Neo4j
+  const handleAddGrade = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCourseName) return;
-    const item: CourseGrade = {
-      id: Date.now().toString(),
-      name: newCourseName,
-      credits: parseInt(newCourseCredits) || 3,
-      grade: newCourseGrade
-    };
-    setGrades([...grades, item]);
-    setNewCourseName('');
+    try {
+      const res = await apiFetch('/playground/grades', {
+        method: 'POST',
+        body: JSON.stringify({ name: newCourseName, credits: parseInt(newCourseCredits) || 3, grade: newCourseGrade })
+      });
+      const saved = res.data;
+      if (saved) {
+        const item: CourseGrade = {
+          id: saved.id,
+          name: saved.courseName,
+          credits: typeof saved.credits === 'object' ? saved.credits.low : saved.credits,
+          grade: saved.grade
+        };
+        setGrades(prev => [item, ...prev]);
+      }
+      setNewCourseName('');
+    } catch (err) {
+      console.error('Failed to save grade:', err);
+      alert('Gagal menyimpan nilai matkul ke database');
+    }
+  };
+
+  const handleDeleteGrade = async (id: string) => {
+    try {
+      await apiFetch(`/playground/grades/${id}`, { method: 'DELETE' });
+      setGrades(prev => prev.filter(g => g.id !== id));
+    } catch (err) {
+      console.error('Failed to delete grade:', err);
+    }
+  };
+
+  // APP 11: Flashcard simpan ke database Neo4j
+  const handleSaveFlashcard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCardQuestion.trim() || !newCardAnswer.trim()) return;
+    try {
+      const res = await apiFetch('/playground/flashcards', {
+        method: 'POST',
+        body: JSON.stringify({ question: newCardQuestion, answer: newCardAnswer, difficulty: 'medium' })
+      });
+      const saved = res.data;
+      if (saved) {
+        setFlashcards(prev => [{ id: saved.id, question: saved.question, answer: saved.answer }, ...prev]);
+      }
+      setNewCardQuestion('');
+      setNewCardAnswer('');
+      setShowAddCardForm(false);
+    } catch (err) {
+      console.error('Failed to save flashcard:', err);
+      alert('Gagal menyimpan flashcard ke database');
+    }
+  };
+
+  const handleDeleteFlashcard = async (id: string) => {
+    try {
+      await apiFetch(`/playground/flashcards/${id}`, { method: 'DELETE' });
+      setFlashcards(prev => {
+        const next = prev.filter(f => f.id !== id);
+        // reset index kalau sekarang lagi di kartu yang dihapus
+        if (currentCardIdx >= next.length) setCurrentCardIdx(Math.max(0, next.length - 1));
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to delete flashcard:', err);
+    }
   };
 
   const getGpaValue = (grade: string) => {
@@ -460,25 +533,10 @@ export default function ServicesPage() {
 
   // Sidebar Links config
   const navItems = [
-    { id: 'jual', label: 'Jual (Marketplace)', icon: '🛒', cat: 'Aplikasi Saya' },
-    { id: 'grup', label: 'Grup (Circles)', icon: '👥', cat: 'Aplikasi Saya' },
-    { id: 'kelola-tagihan', label: 'Kelola Tagihan (Split)', icon: '💳', cat: 'Aplikasi Saya' },
-    { id: 'flashcards', label: 'Flashcards (Spaced)', icon: '📇', cat: 'Aplikasi Saya' },
-    { id: 'gpa-calculator', label: 'GPA Calculator', icon: '📈', cat: 'Aplikasi Saya' },
-
-    { id: 'talent-insights', label: 'Talent Insights', icon: '📊', cat: 'Talenta & Karir' },
-    { id: 'posting-pekerjaan', label: 'Posting Pekerjaan', icon: '💼', cat: 'Talenta & Karir' },
-
-    { id: 'marketplace-layanan', label: 'Tutoring Exchange', icon: '🌐', cat: 'Jasa & Freelance' },
-    { id: 'lofi-lounge', label: 'Lofi Ambient Lounge', icon: '🎵', cat: 'Jasa & Freelance' },
-
-    { id: 'pasang-iklan', label: 'Pasang Iklan Banner', icon: '🎯', cat: 'Pemasaran & AI' },
-    { id: 'summarizer', label: 'AI Note Summarizer', icon: '🧠', cat: 'Pemasaran & AI' },
-
-    { id: 'learning', label: 'Learning Studio', icon: '📺', cat: 'Akademik Pro' },
-    { id: 'whiteboard', label: 'Canvas Whiteboard', icon: '✏️', cat: 'Akademik Pro' },
-    { id: 'matchmaker', label: 'Buddy Matchmaker', icon: '❤️', cat: 'Akademik Pro' },
-    { id: 'calendar', label: 'Exam Gantt Calendar', icon: '📅', cat: 'Akademik Pro' }
+    { id: 'gpa-calculator', label: 'GPA Calculator & Matrix', icon: '📈' },
+    { id: 'calendar', label: 'Reminders', icon: '📅' },
+    { id: 'matchmaker', label: 'Matchmaker', icon: '❤️' },
+    { id: 'posting-pekerjaan', label: 'Jobs Info', icon: '💼' }
   ];
 
   return (
@@ -491,7 +549,7 @@ export default function ServicesPage() {
             <span className="text-3xl">⚡</span>
             <div>
               <h1 className="text-xl font-black text-[#1D1D1F] tracking-tight">StudyBuddy Premium Tools</h1>
-              <p className="text-xs font-semibold text-zinc-400 mt-0.5">Explore 15 state-of-the-art interactive micro-applications for UI students</p>
+              <p className="text-xs font-semibold text-zinc-400 mt-0.5">Explore 4 state-of-the-art interactive micro-applications for UI students</p>
             </div>
           </div>
           <Link href="/">
@@ -504,202 +562,26 @@ export default function ServicesPage() {
         {/* CONTAINER GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* LEFT SIDEBAR (15 TABS PANEL) */}
+          {/* LEFT SIDEBAR */}
           <div className="lg:col-span-4 p-5 rounded-3xl bg-white border border-zinc-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col gap-5">
             <h3 className="text-xs font-black text-[#1D1D1F] uppercase tracking-wider px-1">Pilih Aplikasi</h3>
-            <div className="flex flex-col gap-5 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-              
-              {/* Category: Aplikasi Saya */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest px-1">Aplikasi Utama</span>
-                {navItems.filter(item => item.cat === 'Aplikasi Saya').map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => router.push(`/services/${item.id}`)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold text-left transition-all ${activeApp === item.id ? 'bg-logo-gradient text-white shadow-md scale-[1.01]' : 'hover:bg-zinc-50 text-zinc-600 hover:text-[#1D1D1F]'}`}
-                  >
-                    <span>{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Category: Talenta & Karir */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest px-1">Talenta & Karir</span>
-                {navItems.filter(item => item.cat === 'Talenta & Karir').map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => router.push(`/services/${item.id}`)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold text-left transition-all ${activeApp === item.id ? 'bg-logo-gradient text-white shadow-md scale-[1.01]' : 'hover:bg-zinc-50 text-zinc-600 hover:text-[#1D1D1F]'}`}
-                  >
-                    <span>{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Category: Jasa & Freelance */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest px-1">Jasa & Freelance</span>
-                {navItems.filter(item => item.cat === 'Jasa & Freelance').map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => router.push(`/services/${item.id}`)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold text-left transition-all ${activeApp === item.id ? 'bg-logo-gradient text-white shadow-md scale-[1.01]' : 'hover:bg-zinc-50 text-zinc-600 hover:text-[#1D1D1F]'}`}
-                  >
-                    <span>{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Category: Pemasaran & AI */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest px-1">Pemasaran & AI</span>
-                {navItems.filter(item => item.cat === 'Pemasaran & AI').map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => router.push(`/services/${item.id}`)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold text-left transition-all ${activeApp === item.id ? 'bg-logo-gradient text-white shadow-md scale-[1.01]' : 'hover:bg-zinc-50 text-zinc-600 hover:text-[#1D1D1F]'}`}
-                  >
-                    <span>{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Category: Akademik Pro */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest px-1">Akademik Pro</span>
-                {navItems.filter(item => item.cat === 'Akademik Pro').map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => router.push(`/services/${item.id}`)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold text-left transition-all ${activeApp === item.id ? 'bg-logo-gradient text-white shadow-md scale-[1.01]' : 'hover:bg-zinc-50 text-zinc-600 hover:text-[#1D1D1F]'}`}
-                  >
-                    <span>{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
+            <div className="flex flex-col gap-1.5 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => router.push(`/services/${item.id}`)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold text-left transition-all ${activeApp === item.id ? 'bg-logo-gradient text-white shadow-md scale-[1.01]' : 'hover:bg-zinc-50 text-zinc-600 hover:text-[#1D1D1F]'}`}
+                >
+                  <span>{item.icon}</span>
+                  <span className="flex-1 truncate">{item.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
           {/* MAIN WORKING AREA PANEL */}
           <div className="lg:col-span-8 p-6 rounded-3xl bg-white border border-zinc-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] min-h-[500px]">
             
-            {/* APP 1: JUAL (MARKETPLACE) */}
-            {activeApp === 'jual' && (
-              <div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 pb-4">
-                  <h2 className="text-base font-black text-zinc-800">🛒 Marketplace Buku & Alat Belajar</h2>
-                  <p className="text-xs text-zinc-400 mt-1">Jual beli buku teks kuliah bekas dan perlengkapan studi mahasiswa UI.</p>
-                </div>
-
-                {/* Listing Form */}
-                <form onSubmit={handleAddBook} className="p-4.5 bg-zinc-50 border border-zinc-150 rounded-2xl flex flex-col gap-3">
-                  <span className="text-xs font-bold text-zinc-500">Pasang Iklan Buku Baru</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="Judul Buku (misal: SBD UI Kuno)" 
-                      value={newBook.title}
-                      onChange={e => setNewBook({ ...newBook, title: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      required
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Harga (Rp, misal: 150000)" 
-                      value={newBook.price}
-                      onChange={e => setNewBook({ ...newBook, price: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      required
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Mata Kuliah (misal: SBD UI)" 
-                      value={newBook.course}
-                      onChange={e => setNewBook({ ...newBook, course: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Nomor WA (misal: 0812345)" 
-                      value={newBook.contact}
-                      onChange={e => setNewBook({ ...newBook, contact: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Kondisi:</span>
-                      <select 
-                        value={newBook.condition} 
-                        onChange={e => setNewBook({ ...newBook, condition: e.target.value })}
-                        className="p-1.5 text-xs bg-white border border-zinc-200 rounded-lg focus:outline-none text-zinc-600 font-bold"
-                      >
-                        <option>Like New</option>
-                        <option>Good</option>
-                        <option>Moderate</option>
-                      </select>
-                    </div>
-                    <button type="submit" className="px-5 py-2 text-xs font-black bg-logo-gradient text-white rounded-xl hover:opacity-95 shadow-sm">
-                      Post Buku
-                    </button>
-                  </div>
-                </form>
-
-                {/* Filter and Browse Section */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-500">Daftar Buku Tersedia</span>
-                    <input 
-                      type="text" 
-                      placeholder="Cari buku..." 
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      className="p-2 w-48 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {textbooks
-                      .filter(b => b.title.toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map(b => (
-                        <div key={b.id} className="p-4 bg-white border border-zinc-150 rounded-2xl flex flex-col justify-between gap-3 shadow-sm hover:scale-[1.005] transition-transform">
-                          <div>
-                            <div className="flex justify-between items-start">
-                              <span className="px-2 py-0.5 text-[9px] font-extrabold bg-blue-50 text-blue-600 border border-blue-150 rounded-md">
-                                {b.course}
-                              </span>
-                              <span className="text-[10px] font-bold text-zinc-400 italic">
-                                {b.condition}
-                              </span>
-                            </div>
-                            <h4 className="text-sm font-black text-zinc-800 mt-2">{b.title}</h4>
-                          </div>
-                          
-                          <div className="flex items-center justify-between border-t border-zinc-100 pt-3 mt-1">
-                            <span className="text-xs font-black text-amber-600">Rp {b.price.toLocaleString()}</span>
-                            <a 
-                              href={`https://wa.me/${b.contact}`} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="px-3.5 py-1.5 text-[10px] font-black bg-green-500 hover:bg-green-600 text-white rounded-lg transition"
-                            >
-                              Hubungi Penjual
-                            </a>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* APP 2: GRUP (CIRCLES) */}
             {activeApp === 'grup' && (
               <div className="flex flex-col gap-6">
@@ -773,107 +655,6 @@ export default function ServicesPage() {
                         Send
                       </button>
                     </form>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* APP 3: KELOLA TAGIHAN (SPLIT BILL) */}
-            {activeApp === 'kelola-tagihan' && (
-              <div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 pb-4">
-                  <h2 className="text-base font-black text-zinc-800">💳 Kelola Tagihan & Split Expense Ledger</h2>
-                  <p className="text-xs text-zinc-400 mt-1">Lacak pengeluaran bersama kontrakan, fotokopi laporan SBD, atau patungan beli buku.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Expense Calculator Form */}
-                  <form onSubmit={handleAddExpense} className="p-4.5 bg-zinc-50 border border-zinc-150 rounded-2xl flex flex-col gap-3">
-                    <span className="text-xs font-black text-zinc-500">Catat Pengeluaran Baru</span>
-                    <input 
-                      type="text" 
-                      placeholder="Nama Pengeluaran (misal: Fotokopi Modul SBD)" 
-                      value={newExpense.description}
-                      onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      required
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Nominal (Rp, misal: 45000)" 
-                      value={newExpense.amount}
-                      onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      required
-                    />
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-zinc-400">Dibayar oleh:</span>
-                      <select 
-                        value={newExpense.paidBy} 
-                        onChange={e => setNewExpense({ ...newExpense, paidBy: e.target.value })}
-                        className="p-1.5 text-xs bg-white border border-zinc-200 rounded-lg text-zinc-600 font-bold"
-                      >
-                        <option>Anda</option>
-                        <option>Diva</option>
-                        <option>Coki</option>
-                      </select>
-                    </div>
-
-                    {/* Checklist participants */}
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider">Patungan Bersama:</span>
-                      <div className="flex gap-3">
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-zinc-600">
-                          <input type="checkbox" checked={newExpense.splitAnda} onChange={e => setNewExpense({ ...newExpense, splitAnda: e.target.checked })} />
-                          Anda
-                        </label>
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-zinc-600">
-                          <input type="checkbox" checked={newExpense.splitDiva} onChange={e => setNewExpense({ ...newExpense, splitDiva: e.target.checked })} />
-                          Diva
-                        </label>
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-zinc-600">
-                          <input type="checkbox" checked={newExpense.splitCoki} onChange={e => setNewExpense({ ...newExpense, splitCoki: e.target.checked })} />
-                          Coki
-                        </label>
-                      </div>
-                    </div>
-
-                    <button type="submit" className="w-full mt-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition">
-                      Simpan Ledger
-                    </button>
-                  </form>
-
-                  {/* Summary Ledgers */}
-                  <div className="flex flex-col gap-4">
-                    <div className="p-4 bg-zinc-50 border border-zinc-150 rounded-2xl flex flex-col gap-2">
-                      <span className="text-xs font-black text-zinc-500">Status Saldo Anda</span>
-                      <div className="grid grid-cols-2 gap-3 mt-1 text-center">
-                        <div className="p-2.5 bg-white border border-zinc-200 rounded-xl">
-                          <span className="text-[9px] font-black text-red-500 uppercase">HUTANG ANDA</span>
-                          <p className="text-sm font-black text-red-600 mt-1">Rp {getDormBalances().andaOwes.toLocaleString()}</p>
-                        </div>
-                        <div className="p-2.5 bg-white border border-zinc-200 rounded-xl">
-                          <span className="text-[9px] font-black text-green-500 uppercase">MEREKA UTANG</span>
-                          <p className="text-sm font-black text-green-600 mt-1">Rp {getDormBalances().othersOweAnda.toLocaleString()}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <span className="text-xs font-black text-zinc-500 px-1">Log Pengeluaran</span>
-                      <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
-                        {expenses.map(e => (
-                          <div key={e.id} className="p-3 bg-white border border-zinc-150 rounded-xl flex items-center justify-between text-xs">
-                            <div>
-                              <h4 className="font-extrabold text-zinc-700">{e.description}</h4>
-                              <p className="text-[10px] text-zinc-400 mt-0.5">Oleh: {e.paidBy} • Dibagi {e.splitWith.length} orang</p>
-                            </div>
-                            <span className="font-black text-zinc-800">Rp {e.amount.toLocaleString()}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1039,95 +820,6 @@ export default function ServicesPage() {
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* APP 7: PASANG IKLAN */}
-            {activeApp === 'pasang-iklan' && (
-              <div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 pb-4">
-                  <h2 className="text-base font-black text-zinc-800">🎯 Campus Event Poster Ad Creator</h2>
-                  <p className="text-xs text-zinc-400 mt-1">Buat banner promosi seminar, lomba, atau kegiatan organisasi Anda dan publikasikan ke mahasiswa lain.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Creation Form */}
-                  <form onSubmit={handleCreateAd} className="p-4.5 bg-zinc-50 border border-zinc-150 rounded-2xl flex flex-col gap-3">
-                    <span className="text-xs font-black text-zinc-500">Rancang Ad Banner Baru</span>
-                    <input 
-                      type="text" 
-                      placeholder="Nama Seminar / Event" 
-                      value={newAd.title}
-                      onChange={e => setNewAd({ ...newAd, title: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      required
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Sub-deskripsi Singkat" 
-                      value={newAd.subtitle}
-                      onChange={e => setNewAd({ ...newAd, subtitle: e.target.value })}
-                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      required
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="Tanggal Event" 
-                        value={newAd.date}
-                        onChange={e => setNewAd({ ...newAd, date: e.target.value })}
-                        className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Tiket (misal: Free)" 
-                        value={newAd.price}
-                        onChange={e => setNewAd({ ...newAd, price: e.target.value })}
-                        className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-zinc-400">Pilih Gradasi Warna:</span>
-                      <select 
-                        value={newAd.theme} 
-                        onChange={e => setNewAd({ ...newAd, theme: e.target.value })}
-                        className="p-1.5 text-xs bg-white border border-zinc-200 rounded-lg text-zinc-600 font-bold"
-                      >
-                        <option>Sunset</option>
-                        <option>Ocean</option>
-                        <option>Forest</option>
-                        <option>Cherry</option>
-                      </select>
-                    </div>
-
-                    <button type="submit" className="w-full mt-2 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow-sm transition">
-                      Publish Banner Kampus
-                    </button>
-                  </form>
-
-                  {/* Pixel Perfect Preview Panel */}
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs font-black text-zinc-400 px-1">Live Preview Poster</span>
-                    <div className={`p-6 rounded-3xl text-white flex flex-col justify-between h-48 shadow-lg transition-all ${
-                      newAd.theme === 'Sunset' ? 'bg-gradient-to-br from-amber-500 to-rose-600' :
-                      newAd.theme === 'Ocean' ? 'bg-gradient-to-br from-[#0071E3] to-cyan-500' :
-                      newAd.theme === 'Forest' ? 'bg-gradient-to-br from-emerald-500 to-teal-700' :
-                      'bg-gradient-to-br from-pink-500 to-indigo-600'
-                    }`}>
-                      <div>
-                        <span className="px-2 py-0.5 text-[8px] font-black uppercase bg-white/20 backdrop-blur rounded">Event Kampus</span>
-                        <h3 className="text-base font-black tracking-tight mt-3">{newAd.title || 'Judul Event Anda'}</h3>
-                        <p className="text-[10px] font-medium text-white/90 leading-relaxed mt-1">{newAd.subtitle || 'Deskripsi singkat event'}</p>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-white/20 pt-3 text-[10px] font-black">
-                        <span>📅 {newAd.date || 'Tgl Event'}</span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-white text-zinc-800 shadow-sm">{newAd.price || 'Harga Tiket'}</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
@@ -1320,75 +1012,134 @@ export default function ServicesPage() {
             {/* APP 11: FLASHCARDS */}
             {activeApp === 'flashcards' && (
               <div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 pb-4">
-                  <h2 className="text-base font-black text-zinc-800">📇 Flashcard Active Recall Deck (Anki-like)</h2>
-                  <p className="text-xs text-zinc-400 mt-1">Uji ingatan Anda dengan pengulangan kartu belajar (Spaced Repetition) guna melibas ujian basis data.</p>
+                <div className="flex items-start justify-between border-b border-zinc-100 pb-4">
+                  <div>
+                    <h2 className="text-base font-black text-zinc-800">📇 Flashcard Active Recall Deck (Anki-like)</h2>
+                    <p className="text-xs text-zinc-400 mt-1">Uji ingatan Anda dengan pengulangan kartu belajar (Spaced Repetition) guna melibas ujian basis data.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddCardForm(!showAddCardForm)}
+                    className="shrink-0 px-3 py-1.5 text-[10px] font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition"
+                  >
+                    {showAddCardForm ? '✕ Batal' : '+ Kartu Baru'}
+                  </button>
                 </div>
 
+                {/* Add new card form */}
+                {showAddCardForm && (
+                  <form onSubmit={handleSaveFlashcard} className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex flex-col gap-2.5 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">Tambah Kartu Baru ke Database</span>
+                    <textarea
+                      placeholder="Pertanyaan / Soal (misal: Apa itu Index-Free Adjacency?)"
+                      value={newCardQuestion}
+                      onChange={e => setNewCardQuestion(e.target.value)}
+                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold h-16 resize-none"
+                      required
+                    />
+                    <textarea
+                      placeholder="Jawaban (misal: Teknik Neo4j menyimpan pointer relasi langsung di node...)"
+                      value={newCardAnswer}
+                      onChange={e => setNewCardAnswer(e.target.value)}
+                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold h-16 resize-none"
+                      required
+                    />
+                    <button type="submit" className="py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl">
+                      💾 Simpan ke Neo4j
+                    </button>
+                  </form>
+                )}
+
                 <div className="flex flex-col items-center gap-5">
-                  
-                  {/* Card Flip Body */}
-                  <div 
-                    onClick={() => setIsCardFlipped(!isCardFlipped)}
-                    className="w-full max-w-md h-52 bg-white border border-zinc-200 rounded-3xl p-6 shadow-md flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition-all select-none hover:shadow-lg"
-                  >
-                    <div className="flex justify-between items-center text-[9px] font-black text-zinc-400">
-                      <span>KARTU {currentCardIdx + 1} DARI {flashcards.length}</span>
-                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 uppercase">
-                        {isCardFlipped ? 'JAWABAN (CLICK FLIP)' : 'PERTANYAAN (CLICK FLIP)'}
-                      </span>
+                  {flashcards.length === 0 ? (
+                    <p className="text-xs text-zinc-400 italic py-8">Belum ada flashcard. Klik "+ Kartu Baru" untuk menambahkan.</p>
+                  ) : (
+                    <>
+                    {/* Card Flip Body */}
+                    <div 
+                      onClick={() => setIsCardFlipped(!isCardFlipped)}
+                      className="w-full max-w-md h-52 bg-white border border-zinc-200 rounded-3xl p-6 shadow-md flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition-all select-none hover:shadow-lg"
+                    >
+                      <div className="flex justify-between items-center text-[9px] font-black text-zinc-400">
+                        <span>KARTU {currentCardIdx + 1} DARI {flashcards.length}</span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 uppercase">
+                          {isCardFlipped ? 'JAWABAN (CLICK FLIP)' : 'PERTANYAAN (CLICK FLIP)'}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 flex items-center justify-center text-center p-2">
+                        <p className={`text-xs leading-relaxed font-black ${isCardFlipped ? 'text-indigo-600' : 'text-zinc-800'}`}>
+                          {isCardFlipped ? flashcards[currentCardIdx].answer : flashcards[currentCardIdx].question}
+                        </p>
+                      </div>
+
+                      <div className="text-center text-[9px] font-bold text-zinc-400">
+                        💡 Klik di mana saja pada kartu untuk membalik posisi.
+                      </div>
                     </div>
 
-                    <div className="flex-1 flex items-center justify-center text-center p-2">
-                      <p className={`text-xs leading-relaxed font-black ${isCardFlipped ? 'text-indigo-600' : 'text-zinc-800'}`}>
-                        {isCardFlipped ? flashcards[currentCardIdx].answer : flashcards[currentCardIdx].question}
-                      </p>
-                    </div>
-
-                    <div className="text-center text-[9px] font-bold text-zinc-400">
-                      💡 Klik di mana saja pada kartu untuk membalik posisi.
-                    </div>
-                  </div>
-
-                  {/* Feedback selection spaced repetition */}
-                  {isCardFlipped && (
-                    <div className="flex gap-2 w-full max-w-md animate-in fade-in duration-200">
+                    {/* Hapus kartu ini + navigation */}
+                    <div className="flex items-center gap-2 w-full max-w-md">
                       <button
                         onClick={() => {
-                          setReviewedCardsCount(reviewedCardsCount + 1);
+                          setIsCardFlipped(false);
+                          setCurrentCardIdx((currentCardIdx - 1 + flashcards.length) % flashcards.length);
+                        }}
+                        className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-xl text-[10px] font-bold"
+                      >← Prev</button>
+                      <button
+                        onClick={() => handleDeleteFlashcard(flashcards[currentCardIdx].id)}
+                        className="flex-1 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-xl text-[10px] font-black transition"
+                      >🗑 Hapus Kartu Ini dari DB</button>
+                      <button
+                        onClick={() => {
                           setIsCardFlipped(false);
                           setCurrentCardIdx((currentCardIdx + 1) % flashcards.length);
                         }}
-                        className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] rounded-xl transition"
-                      >
-                        🔴 Hard (Review Segera)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setReviewedCardsCount(reviewedCardsCount + 1);
-                          setIsCardFlipped(false);
-                          setCurrentCardIdx((currentCardIdx + 1) % flashcards.length);
-                        }}
-                        className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] rounded-xl transition"
-                      >
-                        🟡 Medium (Review Nanti)
-                      </button>
-                      <button
-                        onClick={() => {
-                          setReviewedCardsCount(reviewedCardsCount + 1);
-                          setIsCardFlipped(false);
-                          setCurrentCardIdx((currentCardIdx + 1) % flashcards.length);
-                        }}
-                        className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] rounded-xl transition"
-                      >
-                        🟢 Easy (Sudah Hafal)
-                      </button>
+                        className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-xl text-[10px] font-bold"
+                      >Next →</button>
                     </div>
+
+                    {/* Feedback selection spaced repetition */}
+                    {isCardFlipped && (
+                      <div className="flex gap-2 w-full max-w-md animate-in fade-in duration-200">
+                        <button
+                          onClick={() => {
+                            setReviewedCardsCount(reviewedCardsCount + 1);
+                            setIsCardFlipped(false);
+                            setCurrentCardIdx((currentCardIdx + 1) % flashcards.length);
+                          }}
+                          className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] rounded-xl transition"
+                        >
+                          🔴 Hard (Review Segera)
+                        </button>
+                        <button
+                          onClick={() => {
+                            setReviewedCardsCount(reviewedCardsCount + 1);
+                            setIsCardFlipped(false);
+                            setCurrentCardIdx((currentCardIdx + 1) % flashcards.length);
+                          }}
+                          className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] rounded-xl transition"
+                        >
+                          🟡 Medium (Review Nanti)
+                        </button>
+                        <button
+                          onClick={() => {
+                            setReviewedCardsCount(reviewedCardsCount + 1);
+                            setIsCardFlipped(false);
+                            setCurrentCardIdx((currentCardIdx + 1) % flashcards.length);
+                          }}
+                          className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] rounded-xl transition"
+                        >
+                          🟢 Easy (Sudah Hafal)
+                        </button>
+                      </div>
+                    )}
+
+                    <span className="text-[10px] font-bold text-zinc-400">
+                      Kartu Berhasil Ditinjau Sesi Ini: <strong className="text-zinc-600">{reviewedCardsCount}</strong>
+                    </span>
+                    </>
                   )}
-
-                  <span className="text-[10px] font-bold text-zinc-400">
-                    Kartu Berhasil Ditinjau Sesi Ini: <strong className="text-zinc-600">{reviewedCardsCount}</strong>
-                  </span>
                 </div>
               </div>
             )}
@@ -1473,74 +1224,24 @@ export default function ServicesPage() {
                     <div className="flex flex-col gap-2">
                       <span className="text-xs font-black text-zinc-400 px-1">Mata Kuliah Disimpan</span>
                       <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
-                        {grades.map(g => (
+                        {grades.length === 0 ? (
+                          <p className="text-xs text-zinc-400 italic py-4 text-center">Belum ada data nilai. Tambahkan matkul di atas.</p>
+                        ) : grades.map(g => (
                           <div key={g.id} className="p-2 bg-white border border-zinc-150 rounded-xl flex justify-between items-center text-[10px] font-bold">
-                            <span className="text-zinc-600">{g.name} ({g.credits} SKS)</span>
-                            <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-md font-black">{g.grade}</span>
+                            <span className="text-zinc-600 truncate">{g.name} ({g.credits} SKS)</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-md font-black">{g.grade}</span>
+                              <button
+                                onClick={() => handleDeleteGrade(g.id)}
+                                className="w-5 h-5 flex items-center justify-center text-zinc-300 hover:text-red-500 transition rounded"
+                                title="Hapus"
+                              >✕</button>
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* APP 13: LOFI SOUNDSCAPE LOUNGE */}
-            {activeApp === 'lofi-lounge' && (
-              <div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 pb-4">
-                  <h2 className="text-base font-black text-zinc-800">🎵 Lofi Soundscape Focus Lounge</h2>
-                  <p className="text-xs text-zinc-400 mt-1">Nyalakan audio instrumen binaural beats dan lofi focus untuk memacu produktivitas belajar.</p>
-                </div>
-
-                <div className="flex flex-col items-center gap-5 p-6 bg-zinc-50 border border-zinc-150 rounded-3xl w-full max-w-md mx-auto">
-                  <div className="w-32 h-32 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center text-white text-5xl shadow-md select-none animate-pulse">
-                    📻
-                  </div>
-
-                  <div className="text-center">
-                    <h3 className="text-sm font-black text-zinc-800">Lofi Beats Lounge UI Fasilkom</h3>
-                    <p className="text-[10px] text-zinc-400 mt-1 uppercase font-bold tracking-wider">
-                      {isPlayingAudio ? 'STATUS: PLAYING AMBIENT TRACK' : 'STATUS: PAUSED'}
-                    </p>
-                  </div>
-
-                  {/* Audio Track Toggles */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setLofiTrack('beats')}
-                      className={`px-3 py-1.5 text-[9px] font-black rounded-lg border transition ${lofiTrack === 'beats' ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'}`}
-                    >
-                      Focus Lofi Beats
-                    </button>
-                    <button
-                      onClick={() => setLofiTrack('rain')}
-                      className={`px-3 py-1.5 text-[9px] font-black rounded-lg border transition ${lofiTrack === 'rain' ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'}`}
-                    >
-                      Cozy Study Rain
-                    </button>
-                    <button
-                      onClick={() => setLofiTrack('binaural')}
-                      className={`px-3 py-1.5 text-[9px] font-black rounded-lg border transition ${lofiTrack === 'binaural' ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'}`}
-                    >
-                      Binaural Focus Alpha
-                    </button>
-                  </div>
-
-                  {/* Play Controller */}
-                  <div className="flex items-center gap-4 mt-2">
-                    <button
-                      onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                      className="w-12 h-12 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shadow hover:bg-indigo-700 transition"
-                    >
-                      {isPlayingAudio ? '❚❚' : '▶'}
-                    </button>
-                  </div>
-
-                  <span className="text-[10px] text-zinc-400 font-semibold leading-relaxed text-center">
-                    🎵 Suara diproduksi secara sintesis instan oleh audio-context web browser Anda!
-                  </span>
                 </div>
               </div>
             )}
@@ -1587,45 +1288,89 @@ export default function ServicesPage() {
               </div>
             )}
 
-            {/* APP 15: MILESTONES GANTT CALENDAR */}
+            {/* APP 15: REMINDERS (INTERACTIVE SCHEDULES) */}
             {activeApp === 'calendar' && (
               <div className="flex flex-col gap-6">
                 <div className="border-b border-zinc-100 pb-4">
-                  <h2 className="text-base font-black text-zinc-800">📅 Exam Gantt Tracker & Countdown Matrix</h2>
-                  <p className="text-xs text-zinc-400 mt-1">Pantau sisa waktu menuju ujian akhir semester Sistem Basis Data secara real-time.</p>
+                  <h2 className="text-base font-black text-zinc-800">📅 Schedule Reminders & Timeline Matrix</h2>
+                  <p className="text-xs text-zinc-400 mt-1">Pantau sisa waktu menuju agenda akademik Anda secara real-time.</p>
                 </div>
 
                 <div className="flex flex-col gap-5">
                   {/* Countdown Jumbotron */}
                   <div className="p-6 bg-gradient-to-br from-indigo-900 to-zinc-950 text-white rounded-3xl text-center shadow-lg relative overflow-hidden">
-                    <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">HITUNG MUNDUR UAS SBD</span>
+                    <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">HITUNG MUNDUR JADWAL TERDEKAT</span>
                     <h3 className="text-xl sm:text-2xl font-black mt-2 font-mono tracking-tight text-amber-400">
                       {timeLeft || 'Memuat hitung mundur...'}
                     </h3>
-                    <p className="text-[10px] text-white/70 mt-2 font-semibold">Tandai tanggal di kalender dan selesaikan seluruh bab di Academy 🎓!</p>
                   </div>
 
-                  {/* Vertical Milestones Timeline */}
-                  <div className="flex flex-col gap-3">
-                    <span className="text-xs font-black text-zinc-400 px-1">Jadwal Tugas SBD & Fasilkom</span>
-                    
-                    <div className="p-4 bg-zinc-50 border border-zinc-150 rounded-2xl flex items-center gap-3 text-xs font-semibold">
-                      <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0" />
-                      <div className="flex-1">
-                        <h4 className="text-zinc-700 font-extrabold">Final Project SBD UI (Normalisasi & Cypher Setup)</h4>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">Deadline: Besok pukul 23:59 WIB</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded text-[9px] font-black">HIGH PRIO</span>
+                  {/* Form to add reminder */}
+                  <form onSubmit={handleAddReminder} className="p-4.5 bg-zinc-50 border border-zinc-150 rounded-2xl flex flex-col gap-3">
+                    <span className="text-xs font-black text-zinc-500">Tambah Agenda / Schedule Baru</span>
+                    <input 
+                      type="text" 
+                      placeholder="Nama Agenda (misal: Kuis Praktikum SBD)" 
+                      value={newReminderTitle}
+                      onChange={e => setNewReminderTitle(e.target.value)}
+                      className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold"
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input 
+                        type="date" 
+                        value={newReminderDate}
+                        onChange={e => setNewReminderDate(e.target.value)}
+                        className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold text-zinc-700"
+                        required
+                      />
+                      <select 
+                        value={newReminderPriority} 
+                        onChange={e => setNewReminderPriority(e.target.value as any)}
+                        className="p-2.5 text-xs bg-white border border-zinc-200 rounded-xl text-zinc-650 font-bold text-zinc-700"
+                      >
+                        <option value="HIGH">HIGH PRIO</option>
+                        <option value="MID">MID PRIO</option>
+                        <option value="LOW">LOW PRIO</option>
+                      </select>
                     </div>
+                    <button type="submit" className="w-full mt-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition shadow-sm">
+                      Tambah Schedule
+                    </button>
+                  </form>
 
-                    <div className="p-4 bg-zinc-50 border border-zinc-150 rounded-2xl flex items-center gap-3 text-xs font-semibold">
-                      <span className="w-2.5 h-2.5 bg-amber-500 rounded-full shrink-0" />
-                      <div className="flex-1">
-                        <h4 className="text-zinc-700 font-extrabold">Evaluasi CRISP-DM & Data Preparation</h4>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">Deadline: 5 Hari dari sekarang</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded text-[9px] font-black">MID PRIO</span>
-                    </div>
+                  {/* Milestones List */}
+                  <div className="flex flex-col gap-3">
+                    <span className="text-xs font-black text-zinc-400 px-1">Daftar Agenda Pengingat</span>
+                    
+                    {reminders.length === 0 ? (
+                      <p className="text-xs text-zinc-400 text-center py-4 bg-zinc-50 border border-dashed border-zinc-200 rounded-2xl">Belum ada agenda belajar yang ditambahkan.</p>
+                    ) : (
+                      reminders.map(r => (
+                        <div key={r.id} className="p-4 bg-zinc-50 border border-zinc-150 rounded-2xl flex items-center gap-3 text-xs font-semibold justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.priority === 'HIGH' ? 'bg-rose-500' : r.priority === 'MID' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                            <div className="flex-1">
+                              <h4 className="text-zinc-700 font-extrabold">{r.title}</h4>
+                              <p className="text-[10px] text-zinc-400 mt-0.5">Tanggal: {r.date}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black ${r.priority === 'HIGH' ? 'bg-rose-50 text-rose-600' : r.priority === 'MID' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+                              {r.priority} PRIO
+                            </span>
+                            <button 
+                              type="button"
+                              onClick={() => handleDeleteReminder(r.id)}
+                              className="text-red-500 hover:text-red-700 font-bold px-1"
+                              title="Delete"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>

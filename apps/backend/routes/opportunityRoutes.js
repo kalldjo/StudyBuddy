@@ -7,5 +7,7 @@ router.use(authMiddleware);
 
 router.post('/', opportunityController.createOpportunity);
 router.get('/', opportunityController.getOpportunities);
+router.post('/:id/apply', opportunityController.applyOpportunity);
 
 module.exports = router;
+

@@ -58,4 +58,39 @@ const getUserPosts = async (req, res) => {
   }
 };
 
-module.exports = { createPost, getFeed, toggleLike, deletePost, getUserPosts };
+// tambah komentar ke pos
+const addComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'Comment content is required' });
+    }
+    const comment = await postModel.addCommentToPost(req.userId, id, content);
+    res.status(201).json({ data: comment });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// get list komentar pos
+const getComments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const comments = await postModel.getPostComments(id);
+    res.json({ data: comments });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { 
+  createPost, 
+  getFeed, 
+  toggleLike, 
+  deletePost, 
+  getUserPosts,
+  addComment,
+  getComments
+};
+

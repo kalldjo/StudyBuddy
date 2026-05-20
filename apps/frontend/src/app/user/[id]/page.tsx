@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/utils/api';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
+import { io } from 'socket.io-client';
+import cytoscape from 'cytoscape';
 
 const unwrapNeo4jInt = (val: any): any => {
   if (val === null || val === undefined) return '';
@@ -78,12 +80,8 @@ export default function UserProfileViewer() {
     }
   }, [activeView, connectionStatus]);
 
-  // Notifications State
-  const [notifications, setNotifications] = useState<any[]>([
-    { id: 'n1', text: 'Sarah Amanda sent you a friend request.', read: false, time: '2m ago' },
-    { id: 'n2', text: 'PT Astra International recruiter viewed your resume card.', read: false, time: '1h ago' },
-    { id: 'n3', text: 'Rian Kurnia requested to collaborate on your CRISP-DM project.', read: false, time: '3h ago' }
-  ]);
+  // Notifications State — load riil dari backend
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // Real-Time Direct Sync Chat States
   const [buddies, setBuddies] = useState<any[]>([]);
@@ -92,6 +90,7 @@ export default function UserProfileViewer() {
   const [activeChatBuddyName, setActiveChatBuddyName] = useState<string>('');
   const [buddyMessagesList, setBuddyMessagesList] = useState<any[]>([]);
   const [chatInputs, setChatInputs] = useState('');
+  const [socket, setSocket] = useState<any>(null);
 
   // Fetch dynamic chat buddies (friends)
   useEffect(() => {
@@ -115,7 +114,22 @@ export default function UserProfileViewer() {
     loadChatBuddies();
   }, [activeView]);
 
-  // Fetch & Poll messages for the active Chat Buddy
+  // Inisialisasi socket.io-client connection
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    
+    // connect ke backend
+    const s = io('http://localhost:3001', {
+      query: { userId: currentUser.id }
+    });
+    setSocket(s);
+
+    return () => {
+      s.close();
+    };
+  }, [currentUser]);
+
+  // Fetch message history pas pindah chat buddy
   useEffect(() => {
     if (activeView !== 'direct_sync' || !activeChatBuddyId) return;
 
@@ -130,15 +144,327 @@ export default function UserProfileViewer() {
       }
     };
 
-    fetchMessages(); // initial load
-    
-    const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval);
+    fetchMessages();
   }, [activeView, activeChatBuddyId]);
+
+  // Real-time socket message handler
+  useEffect(() => {
+    if (!socket || !activeChatBuddyId) return;
+
+    const handleReceiveMessage = (msg: any) => {
+      if (
+        (msg.senderId === activeChatBuddyId && msg.receiverId === currentUser?.id) ||
+        (msg.senderId === currentUser?.id && msg.receiverId === activeChatBuddyId)
+      ) {
+        setBuddyMessagesList(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev;
+          const filtered = prev.filter(m => !m.id.startsWith('local_'));
+          return [...filtered, msg];
+        });
+      }
+    };
+
+    socket.on('receive_message', handleReceiveMessage);
+
+    // terima notif real-time jika ada yang masuk
+    const handleNewNotification = (notif: any) => {
+      setNotifications(prev => [notif, ...prev]);
+    };
+    socket.on('new_notification', handleNewNotification);
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage);
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket, activeChatBuddyId, currentUser]);
+
+  // Fetch notifikasi riil dari backend saat pertama load
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fetchNotifs = async () => {
+      try {
+        const res = await apiFetch('/notifications');
+        setNotifications(res.data || []);
+      } catch (err) {
+        console.error('Failed to fetch notifications', err);
+      }
+    };
+    fetchNotifs();
+  }, [currentUser]);
 
   // Graph Explorer Node Selector States
   const [selectedGraphNode, setSelectedGraphNode] = useState<any>(null);
-  const [hoveredGraphNode, setHoveredGraphNode] = useState<string | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<any>(null);
+  const [dynamicGraphData, setDynamicGraphData] = useState<any>(null);
+  const [loadingGraph, setLoadingGraph] = useState(false);
+
+  useEffect(() => {
+    if (activeView !== 'graph_explorer' || !userId) return;
+
+    const fetchGraphData = async () => {
+      setLoadingGraph(true);
+      try {
+        const res = await apiFetch(`/users/graph/${userId}`);
+        if (res.success && res.data) {
+          setDynamicGraphData(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch dynamic graph data', err);
+      } finally {
+        setLoadingGraph(false);
+      }
+    };
+
+    fetchGraphData();
+  }, [activeView, userId]);
+
+  // Initialize Cytoscape when dynamicGraphData is fetched and the container is ready
+  useEffect(() => {
+    if (activeView !== 'graph_explorer' || !dynamicGraphData || !containerRef.current) return;
+
+    const elements: any[] = [];
+
+    // 1. Center User Node
+    elements.push({
+      data: {
+        id: 'center',
+        label: dynamicGraphData.user?.name || 'Kamu',
+        type: 'user'
+      }
+    });
+
+    // 2. Fakultas Node
+    if (dynamicGraphData.fakultas?.name) {
+      elements.push({
+        data: {
+          id: 'fakultas',
+          label: dynamicGraphData.fakultas.name,
+          type: 'faculty'
+        }
+      });
+      elements.push({
+        data: {
+          id: 'e_c_fakultas',
+          source: 'center',
+          target: 'fakultas',
+          label: 'Fakultas'
+        }
+      });
+    }
+
+    // 3. Jurusan Node
+    if (dynamicGraphData.jurusan?.name) {
+      elements.push({
+        data: {
+          id: 'jurusan',
+          label: dynamicGraphData.jurusan.name,
+          type: 'major'
+        }
+      });
+      elements.push({
+        data: {
+          id: 'e_c_jurusan',
+          source: 'center',
+          target: 'jurusan',
+          label: 'Jurusan'
+        }
+      });
+    }
+
+    // 4. Skills Nodes
+    if (dynamicGraphData.skills) {
+      dynamicGraphData.skills.forEach((s: any) => {
+        const sId = `skill_${s.name}`;
+        elements.push({
+          data: {
+            id: sId,
+            label: s.name,
+            type: 'skill'
+          }
+        });
+        elements.push({
+          data: {
+            id: `e_c_${sId}`,
+            source: 'center',
+            target: sId,
+            label: 'Uses Skill'
+          }
+        });
+      });
+    }
+
+    // 5. Friends Nodes
+    if (dynamicGraphData.friends) {
+      dynamicGraphData.friends.forEach((f: any) => {
+        if (!f || !f.id) return;
+        elements.push({
+          data: {
+            id: f.id,
+            label: f.name,
+            type: 'friend'
+          }
+        });
+        elements.push({
+          data: {
+            id: `e_c_${f.id}`,
+            source: 'center',
+            target: f.id,
+            label: 'Friends With'
+          }
+        });
+
+        // If friend shares user's major
+        if (f.jurusan && dynamicGraphData.jurusan?.name && f.jurusan === dynamicGraphData.jurusan.name) {
+          elements.push({
+            data: {
+              id: `e_f_jurusan_${f.id}`,
+              source: f.id,
+              target: 'jurusan',
+              label: 'Majors In'
+            }
+          });
+        }
+      });
+    }
+
+    // Initialize Cytoscape.js
+    const cy = cytoscape({
+      container: containerRef.current,
+      elements: elements,
+      boxSelectionEnabled: false,
+      autounselectify: true,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'content': 'data(label)',
+            'text-valign': 'bottom',
+            'text-margin-y': 8,
+            'color': '#E2E8F0',
+            'font-family': 'Inter, system-ui, sans-serif',
+            'font-size': '10px',
+            'font-weight': 'bold',
+            'text-background-opacity': 0.8,
+            'text-background-color': '#0F172A',
+            'text-background-padding': '3px',
+            'text-background-shape': 'roundrectangle',
+            'width': '36px',
+            'height': '36px',
+            'background-color': '#475569',
+            'transition-property': 'background-color, line-color, target-arrow-color',
+            'transition-duration': 0.3
+          } as any
+        },
+        {
+          selector: 'node[type="user"]',
+          style: {
+            'width': '50px',
+            'height': '50px',
+            'background-color': '#3B82F6',
+            'border-width': '3px',
+            'border-color': '#60A5FA',
+            'color': '#FFFFFF',
+            'font-size': '11px',
+            'font-weight': 'black'
+          }
+        },
+        {
+          selector: 'node[type="friend"]',
+          style: {
+            'background-color': '#8B5CF6',
+            'border-width': '2px',
+            'border-color': '#A78BFA'
+          }
+        },
+        {
+          selector: 'node[type="skill"]',
+          style: {
+            'background-color': '#10B981',
+            'border-width': '2px',
+            'border-color': '#34D399',
+            'shape': 'hexagon'
+          }
+        },
+        {
+          selector: 'node[type="faculty"]',
+          style: {
+            'background-color': '#F59E0B',
+            'border-width': '2px',
+            'border-color': '#FBBF24',
+            'shape': 'triangle'
+          }
+        },
+        {
+          selector: 'node[type="major"]',
+          style: {
+            'background-color': '#EC4899',
+            'border-width': '2px',
+            'border-color': '#F472B6',
+            'shape': 'diamond'
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 1.5,
+            'line-color': '#334155',
+            'target-arrow-color': '#334155',
+            'target-arrow-shape': 'none',
+            'curve-style': 'bezier',
+            'transition-property': 'line-color, width',
+            'transition-duration': 0.3
+          } as any
+        },
+        {
+          selector: 'edge:selected',
+          style: {
+            'line-color': '#60A5FA',
+            'width': 3
+          } as any
+        }
+      ],
+      layout: {
+        name: 'cose',
+        animate: true,
+        animationDuration: 800,
+        nodeRepulsion: () => 6000,
+        idealEdgeLength: () => 100,
+        gravity: 0.2
+      } as any
+    });
+
+    cyRef.current = cy;
+
+    // Tap/Click node listener
+    cy.on('tap', 'node', (evt: any) => {
+      const node = evt.target;
+      setSelectedGraphNode({
+        id: node.id(),
+        label: node.data('label'),
+        type: node.data('type')
+      });
+    });
+
+    // Hover listeners
+    cy.on('mouseover', 'node', (evt: any) => {
+      const node = evt.target;
+      
+      // Highlight direct edges and connected nodes
+      cy.edges().style({ 'line-color': '#1E293B', 'width': 1 });
+      node.connectedEdges().style({ 'line-color': '#60A5FA', 'width': 2.5 });
+    });
+
+    cy.on('mouseout', 'node', () => {
+      // Reset edge styling
+      cy.edges().style({ 'line-color': '#334155', 'width': 1.5 });
+    });
+
+    return () => {
+      cy.destroy();
+    };
+  }, [activeView, dynamicGraphData]);
 
   // Fetch initial profile stats
   useEffect(() => {
@@ -172,44 +498,6 @@ export default function UserProfileViewer() {
       fetchProfileData();
     }
   }, [userId]);
-
-  // Graph nodes computation
-  const graphData = useMemo(() => {
-    if (!profile) return { nodes: [], links: [] };
-    
-    const centerNode = {
-      id: 'center',
-      label: profile.name || 'Student',
-      type: 'user',
-      color: 'bg-logo-gradient text-white shadow-lg',
-      x: 300,
-      y: 200,
-      radius: 42
-    };
-
-    const nodes = [
-      centerNode,
-      { id: 'fasilkom', label: profile.fakultas || 'Fasilkom', type: 'faculty', color: 'bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold', x: 180, y: 100, radius: 34 },
-      { id: 'jurusan', label: profile.jurusan || 'Informatika', type: 'major', color: 'bg-blue-50 border border-blue-200 text-blue-700 font-semibold', x: 420, y: 100, radius: 34 },
-      { id: 'sbd', label: 'SBD Database', type: 'interest', color: 'bg-violet-50 border border-violet-200 text-violet-700 font-semibold', x: 140, y: 260, radius: 32 },
-      { id: 'web', label: 'Web Stack', type: 'interest', color: 'bg-teal-50 border border-teal-200 text-teal-700 font-semibold', x: 460, y: 260, radius: 32 },
-      { id: 'sarah', label: 'Sarah Amanda', type: 'friend', color: 'bg-zinc-50 border border-zinc-200 text-zinc-800 font-medium', x: 230, y: 320, radius: 30 },
-      { id: 'rian', label: 'Rian Kurnia', type: 'friend', color: 'bg-zinc-50 border border-zinc-200 text-zinc-800 font-medium', x: 370, y: 320, radius: 30 }
-    ];
-
-    const links = [
-      { source: 'center', target: 'fasilkom' },
-      { source: 'center', target: 'jurusan' },
-      { source: 'center', target: 'sbd' },
-      { source: 'center', target: 'web' },
-      { source: 'center', target: 'sarah' },
-      { source: 'center', target: 'rian' },
-      { source: 'sarah', target: 'sbd' },
-      { source: 'rian', target: 'web' }
-    ];
-
-    return { nodes, links };
-  }, [profile]);
 
   const handleConnect = async () => {
     setActionLoading(true);
@@ -480,32 +768,6 @@ export default function UserProfileViewer() {
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 mb-3.5 px-3">Main Modules</p>
               <div className="flex flex-col gap-1">
-                <Link href="/" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition">
-                  <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-                  </svg>
-                  <span>Pulse Dashboard</span>
-                </Link>
-
-                <Link href="/network" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition">
-                  <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A12.018 12.018 0 0 1 12 20.25a12.018 12.018 0 0 1-3-.109v-.109m0-1.002A9.235 9.235 0 0 0 6 18.75m0-18.75a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9ZM6 18.75A4.125 4.125 0 0 0 2.25 22.5h7.5A4.125 4.125 0 0 0 6 18.75Zm9.75-9.75a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" />
-                  </svg>
-                  <span>My Network</span>
-                </Link>
-
-                <button 
-                  onClick={() => { 
-                    router.push('/?tab=discover'); 
-                  }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition text-left"
-                >
-                  <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                  </svg>
-                  <span>Partner Discovery</span>
-                </button>
-
                 <button 
                   onClick={() => { setActiveView('graph_explorer'); }}
                   className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold transition text-left ${activeView === 'graph_explorer' ? 'bg-[#0071E3]/5 text-[#0071E3] border border-[#0071E3]/10' : 'text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50'}`}
@@ -513,66 +775,45 @@ export default function UserProfileViewer() {
                   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
                   </svg>
-                  <span>Graph Explorer</span>
-                </button>
-              </div>
-            </div>
-
-            {/* GROWTH */}
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 mb-3.5 px-3">Growth</p>
-              <div className="flex flex-col gap-1.5">
-                <button 
-                  onClick={() => { 
-                    setActiveView('profile'); 
-                    setActiveTab('projects'); 
-                  }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition text-left"
-                >
-                  <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 .966-.784 1.75-1.75 1.75H5.5a1.75 1.75 0 0 1-1.75-1.75V14.15m16.5 0a1.75 1.75 0 0 0-1.75-1.75H5.5a1.75 1.75 0 0 0-1.75 1.75m16.5 0V7.65c0-.966-.784-1.75-1.75-1.75H5.5a1.75 1.75 0 0 0-1.75 1.75v6.5m14 0c0-.828-.672-1.5-1.5-1.5s-1.5.672-1.5 1.5.672 1.5 1.5 1.5 1.5-.672 1.5-1.5Zm-11 0c0-.828-.672-1.5-1.5-1.5s-1.5.672-1.5 1.5.672 1.5 1.5 1.5 1.5-.672 1.5-1.5ZM12 3v3m0 0v3m0-3h3m-3 0H9" />
-                  </svg>
-                  <span>Projects & Ops</span>
+                  <span>Graph Explore</span>
                 </button>
 
-                {/* Notifications green pill widget, matching mockup */}
-                <button 
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="flex items-center justify-between w-full px-4 py-3 bg-[#54B589] hover:bg-[#48A37A] text-white rounded-2xl font-extrabold text-xs shadow-md transition-all border border-[#48A37A] hover:scale-[1.01]"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                    </svg>
-                    <span>Notifications</span>
-                  </div>
-                  <span className="bg-red-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-white">
-                    {notifications.filter(n => !n.read).length}
-                  </span>
-                </button>
-
+                {/* 2. Chat */}
                 <button 
                   onClick={() => { setActiveView('direct_sync'); }}
                   className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold transition text-left ${activeView === 'direct_sync' ? 'bg-[#0071E3]/5 text-[#0071E3] border border-[#0071E3]/10' : 'text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50'}`}
                 >
-                  <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379L3.5 20.5h17l-1.92-2.134c1.153-.086 2.294-.213 3.423-.379 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v5.01Z" />
                   </svg>
-                  <span>Direct Sync</span>
+                  <span>Chat</span>
                 </button>
-              </div>
-            </div>
 
-            {/* IDENTIFY */}
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 mb-3.5 px-3">Identify</p>
-              <div className="flex flex-col gap-1">
-                <Link href="/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition">
+                {/* 3. Connection */}
+                <Link href="/network" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition">
                   <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A12.018 12.018 0 0 1 12 20.25a12.018 12.018 0 0 1-3-.109v-.109m0-1.002A9.235 9.235 0 0 0 6 18.75m0-18.75a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9ZM6 18.75A4.125 4.125 0 0 0 2.25 22.5h7.5A4.125 4.125 0 0 0 6 18.75Zm9.75-9.75a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" />
                   </svg>
-                  <span>Account Profile</span>
+                  <span>Connection</span>
                 </Link>
+
+                {/* 4. Notifications */}
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-xs font-bold text-[#5C6E80] hover:text-[#1D1D1F] hover:bg-zinc-50/50 transition text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                    </svg>
+                    <span>Notifications</span>
+                  </div>
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <span className="bg-red-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-white">
+                      {notifications.filter(n => !n.read).length}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -605,7 +846,11 @@ export default function UserProfileViewer() {
               <div className="flex items-center justify-between pb-3 border-b border-zinc-100 mb-3">
                 <h4 className="text-xs font-extrabold text-[#1D1D1F] uppercase tracking-wider">Alert Center</h4>
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
+                    // tandai semua baca di backend juga
+                    try {
+                      await apiFetch('/notifications/mark-read', { method: 'POST' });
+                    } catch (e) { console.error(e); }
                     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
                   }}
                   className="text-[10px] font-bold text-[#0071E3] hover:underline"
@@ -614,13 +859,15 @@ export default function UserProfileViewer() {
                 </button>
               </div>
               <div className="flex flex-col gap-2">
-                {notifications.map(n => (
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-zinc-400 italic text-center py-4">Tidak ada notifikasi baru.</p>
+                ) : notifications.map(n => (
                   <div key={n.id} className={`p-3 rounded-2xl border text-xs flex justify-between items-center transition ${n.read ? 'bg-zinc-50/50 border-zinc-100 text-zinc-400' : 'bg-white border-zinc-100 text-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.01)]'}`}>
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${n.read ? 'bg-transparent' : 'bg-[#54B589]'}`} />
                       <span className="font-semibold">{n.text}</span>
                     </div>
-                    <span className="text-[9px] text-zinc-400">{n.time}</span>
+                    <span className="text-[9px] text-zinc-400 shrink-0 ml-2">{n.createdAt ? new Date(n.createdAt).toLocaleDateString() : 'Baru'}</span>
                   </div>
                 ))}
               </div>
@@ -1078,73 +1325,24 @@ export default function UserProfileViewer() {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
-                {/* SVG Visualizer Canvas */}
-                <div className="lg:col-span-8 bg-zinc-950 border border-zinc-900 rounded-2xl relative overflow-hidden flex items-center justify-center p-4">
-                  <div className="absolute top-3 left-3 text-[10px] font-black uppercase text-zinc-500 flex items-center gap-1">
+                {/* Cytoscape Canvas */}
+                <div className="lg:col-span-8 bg-zinc-950 border border-zinc-900 rounded-2xl relative overflow-hidden flex items-center justify-center min-h-[400px]">
+                  <div className="absolute top-3 left-3 text-[10px] font-black uppercase text-zinc-500 flex items-center gap-1 z-10 pointer-events-none">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span>Active Relationship Canvas</span>
+                    <span>Interactive Neo4j Graph Canvas</span>
                   </div>
                   
-                  <svg className="w-full aspect-[4/3] max-w-full" viewBox="0 0 600 400">
-                    <defs>
-                      <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#7C3AED" />
-                        <stop offset="100%" stopColor="#3B82F6" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Connection Lines */}
-                    {graphData.links.map((link, idx) => {
-                      const sourceNode = graphData.nodes.find(n => n.id === link.source);
-                      const targetNode = graphData.nodes.find(n => n.id === link.target);
-                      if (!sourceNode || !targetNode) return null;
-                      
-                      const isHovered = hoveredGraphNode === link.source || hoveredGraphNode === link.target;
-                      
-                      return (
-                        <line
-                          key={idx}
-                          x1={sourceNode.x}
-                          y1={sourceNode.y}
-                          x2={targetNode.x}
-                          y2={targetNode.y}
-                          stroke={isHovered ? 'url(#logoGrad)' : '#334155'}
-                          strokeWidth={isHovered ? 2.5 : 1}
-                          className="transition-all duration-300"
-                        />
-                      );
-                    })}
-
-                    {/* Nodes Circle */}
-                    {graphData.nodes.map(node => (
-                      <g 
-                        key={node.id} 
-                        transform={`translate(${node.x}, ${node.y})`}
-                        onClick={() => setSelectedGraphNode(node)}
-                        onMouseEnter={() => setHoveredGraphNode(node.id)}
-                        onMouseLeave={() => setHoveredGraphNode(null)}
-                        className="cursor-pointer group"
-                      >
-                        <circle
-                          r={node.radius}
-                          fill={node.id === 'center' ? 'url(#logoGrad)' : '#1E293B'}
-                          stroke={selectedGraphNode?.id === node.id ? '#3B82F6' : hoveredGraphNode === node.id ? '#7C3AED' : '#475569'}
-                          strokeWidth={selectedGraphNode?.id === node.id ? 2.5 : hoveredGraphNode === node.id ? 2 : 1}
-                          className="transition-all duration-300"
-                        />
-                        <text
-                          textAnchor="middle"
-                          dy=".3em"
-                          fill={node.id === 'center' ? '#FFFFFF' : '#E2E8F0'}
-                          fontSize={node.radius > 32 ? '10px' : '9px'}
-                          fontWeight="bold"
-                          className="select-none pointer-events-none transition group-hover:fill-white"
-                        >
-                          {node.label}
-                        </text>
-                      </g>
-                    ))}
-                  </svg>
+                  {loadingGraph ? (
+                    <div className="text-zinc-500 text-xs font-semibold flex flex-col gap-2 items-center justify-center">
+                      <svg className="animate-spin h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Fetching Neo4j graph proximity topology...</span>
+                    </div>
+                  ) : (
+                    <div ref={containerRef} className="w-full h-[400px] cursor-grab active:cursor-grabbing" />
+                  )}
                 </div>
 
                 {/* Node details analytics panel */}

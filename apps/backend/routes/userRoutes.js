@@ -9,6 +9,7 @@ router.put('/profile', userController.updateProfile);
 router.put('/academic', userController.updateAcademic);
 router.put('/interests', userController.updateInterests);
 router.put('/skills', userController.updateSkills);
+router.get('/graph/:id', userController.getUserGraph);
 router.get('/:id', userController.getUserProfile);
 
 module.exports = router;

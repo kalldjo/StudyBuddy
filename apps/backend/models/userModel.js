@@ -162,4 +162,44 @@ const getUserProfile = async (targetId, currentUserId) => {
   }
 };
 
-module.exports = { updateProfile, updateAcademic, updateListRel, getUserProfile };
+const getUserGraph = async (userId) => {
+  const session = getSession();
+  try {
+    const query = `
+      MATCH (u:User {id: $userId})
+      OPTIONAL MATCH (u)-[:MAJORS_IN]->(j:Jurusan)
+      OPTIONAL MATCH (u)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
+      
+      // Friends
+      OPTIONAL MATCH (u)-[:IS_FRIENDS_WITH]-(friend:User)
+      OPTIONAL MATCH (friend)-[:MAJORS_IN]->(fj:Jurusan)
+      
+      // Skills
+      OPTIONAL MATCH (u)-[:HAS_SKILL]->(skill:Skill)
+      OPTIONAL MATCH (friend)-[:HAS_SKILL]->(fSkill:Skill)
+      
+      RETURN u { .id, .name, .profilePicture } AS user,
+             f { .name } AS fakultas,
+             j { .name } AS jurusan,
+             collect(distinct friend { .id, .name, .profilePicture, jurusan: fj.name }) AS friends,
+             collect(distinct skill { .name }) AS skills,
+             collect(distinct fSkill { .name }) AS friendSkills
+    `;
+    const result = await session.run(query, { userId });
+    if (!result.records.length) return null;
+    
+    const record = result.records[0];
+    return {
+      user: record.get('user'),
+      fakultas: record.get('fakultas'),
+      jurusan: record.get('jurusan'),
+      friends: record.get('friends') ? record.get('friends').filter(f => f && f.id) : [],
+      skills: record.get('skills') ? record.get('skills').filter(s => s && s.name) : [],
+      friendSkills: record.get('friendSkills') ? record.get('friendSkills').filter(fs => fs && fs.name) : []
+    };
+  } finally {
+    await session.close();
+  }
+};
+
+module.exports = { updateProfile, updateAcademic, updateListRel, getUserProfile, getUserGraph };

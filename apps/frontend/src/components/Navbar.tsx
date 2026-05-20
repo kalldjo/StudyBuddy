@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { apiFetch } from '@/utils/api';
+import { io } from 'socket.io-client';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -14,6 +16,12 @@ export default function Navbar() {
   const [showAppsMenu, setShowAppsMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isScholar, setIsScholar] = useState(false);
+
+  // Notification bell state
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notifList, setNotifList] = useState<any[]>([]);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
   
   // Pomodoro timer state
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
@@ -56,6 +64,54 @@ export default function Navbar() {
     window.addEventListener('open-apps-drawer', handleOpenDrawer);
     return () => window.removeEventListener('open-apps-drawer', handleOpenDrawer);
   }, []);
+
+  // Fetch unread count on mount, dan socket listener buat notif real-time
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await apiFetch('/notifications/unread-count');
+        setUnreadCount(res.data?.count ?? 0);
+      } catch (e) {
+        // silent fail, gpp badge gak muncul
+      }
+    };
+    fetchUnread();
+
+    // connect socket buat notif global (non-blocking, shared room userId)
+    const s = io('http://localhost:3001', { query: { userId: user.id } });
+    s.on('new_notification', (notif: any) => {
+      setUnreadCount(prev => prev + 1);
+      setNotifList(prev => [notif, ...prev]);
+    });
+    return () => { s.close(); };
+  }, [isAuthenticated, user]);
+
+  // Tutup notif panel kalo klik di luar
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) {
+        setShowNotifPanel(false);
+      }
+    };
+    if (showNotifPanel) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotifPanel]);
+
+  const handleOpenNotifPanel = async () => {
+    const opening = !showNotifPanel;
+    setShowNotifPanel(opening);
+    if (opening) {
+      try {
+        const res = await apiFetch('/notifications');
+        setNotifList(res.data || []);
+        // tandai semua baca di backend juga
+        await apiFetch('/notifications/mark-read', { method: 'POST' });
+        setUnreadCount(0);
+      } catch (e) { console.error(e); }
+    }
+  };
 
   // Pomodoro tick effect
   useEffect(() => {
@@ -141,15 +197,61 @@ export default function Navbar() {
           {isAuthenticated && (
             <div className="hidden md:flex items-center gap-8">
               <NavLink href="/" active={pathname === '/'}>Discover</NavLink>
-              <NavLink href="/ai" active={pathname === '/ai'}>AI Studio ✨</NavLink>
               <NavLink href="/academy" active={pathname === '/academy'}>Academy 🎓</NavLink>
               <NavLink href="/search" active={pathname === '/search'}>Search</NavLink>
+              <NavLink href={`/user/${user?.id}?view=direct_sync`} active={false}>Chat</NavLink>
+              <NavLink href={`/user/${user?.id}?view=notifications`} active={false}>Notification</NavLink>
+              <NavLink href="/network" active={pathname === '/network'}>Connection</NavLink>
+              <NavLink href={`/user/${user?.id}?view=profile&tab=projects`} active={false}>Project</NavLink>
+              <NavLink href="/benchmark" active={pathname === '/benchmark'}>Benchmark 🔬</NavLink>
             </div>
           )}
 
           <div className="flex items-center gap-3 relative">
             {isAuthenticated ? (
                <div className="flex items-center gap-3 relative">
+                  {/* NOTIFICATION BELL */}
+                  <div className="relative" ref={notifPanelRef}>
+                    <button
+                      id="navbar-notification-bell"
+                      onClick={handleOpenNotifPanel}
+                      className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-zinc-100 transition"
+                      title="Notifications"
+                    >
+                      <svg className="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                      </svg>
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-black min-w-[16px] h-[16px] flex items-center justify-center rounded-full px-1 border-2 border-white animate-pulse">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Notification dropdown panel */}
+                    {showNotifPanel && (
+                      <div className="absolute right-0 mt-2.5 w-80 rounded-2xl bg-white border border-zinc-200 shadow-[0_16px_48px_rgba(0,0,0,0.10)] py-3 z-[9998] animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="flex items-center justify-between px-4 pb-2 border-b border-zinc-100">
+                          <p className="text-xs font-extrabold text-[#1D1D1F] tracking-wide">Notifikasi</p>
+                          <span className="text-[9px] font-bold text-zinc-400">{notifList.filter(n => !n.read).length === 0 ? 'Semua sudah dibaca' : `${notifList.filter(n => !n.read).length} belum dibaca`}</span>
+                        </div>
+                        <div className="flex flex-col max-h-72 overflow-y-auto custom-scrollbar">
+                          {notifList.length === 0 ? (
+                            <p className="px-4 py-6 text-xs text-zinc-400 italic text-center">Belum ada notifikasi.</p>
+                          ) : notifList.map(n => (
+                            <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 border-b border-zinc-50 last:border-0 transition hover:bg-zinc-50 ${!n.read ? 'bg-indigo-50/40' : ''}`}>
+                              <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${n.read ? 'bg-transparent' : 'bg-[#0071E3]'}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-zinc-800 leading-snug">{n.text}</p>
+                                <p className="text-[9px] text-zinc-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleDateString('id-ID') : 'Baru'}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Circular Profile Button */}
                   <div className="relative">
                     <button
@@ -246,38 +348,10 @@ export default function Navbar() {
             {/* Content Area (Scrollable) */}
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 custom-scrollbar">
               
-              {/* CATEGORY: APLIKASI SAYA */}
+              {/* CATEGORY: AKADEMIK & KELAS */}
               <div className="flex flex-col gap-3">
-                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Aplikasi Utama</span>
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Akademik & Kelas</span>
                 <div className="grid grid-cols-1 gap-2">
-                  <DrawerItem 
-                    icon="compass"
-                    title="Jual (Textbook & Gear)"
-                    subtitle="Peer-to-peer student marketplace exchange"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/jual'); }}
-                    color="bg-blue-500/10 text-blue-600 border-blue-500/20"
-                  />
-                  <DrawerItem 
-                    icon="users"
-                    title="Grup (Class Circles)"
-                    subtitle="Collaborate on course study groups"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/grup'); }}
-                    color="bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
-                  />
-                  <DrawerItem 
-                    icon="receipt"
-                    title="Kelola Tagihan (Dorm Split)"
-                    subtitle="Track room expenses & printing ledger"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/kelola-tagihan'); }}
-                    color="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                  />
-                  <DrawerItem 
-                    icon="layers"
-                    title="Flashcards (Study Decks)"
-                    subtitle="Active recall & spaced repetition review"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/flashcards'); }}
-                    color="bg-amber-500/10 text-amber-600 border-amber-500/20"
-                  />
                   <DrawerItem 
                     icon="trending-up"
                     title="GPA Calculator & Matrix"
@@ -285,103 +359,48 @@ export default function Navbar() {
                     onClick={() => { setShowAppsMenu(false); router.push('/services/gpa-calculator'); }}
                     color="bg-red-500/10 text-red-600 border-red-500/20"
                   />
-                </div>
-              </div>
-
-              {/* CATEGORY: KARYAWAN BERBAKAT */}
-              <div className="flex flex-col gap-3">
-                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Talenta & Karir</span>
-                <div className="grid grid-cols-1 gap-2">
                   <DrawerItem 
-                    icon="pie-chart"
-                    title="Talent Insights"
-                    subtitle="Visual skills demand & UI alumni demographics"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/talent-insights'); }}
-                    color="bg-[#0071E3]/10 text-[#0071E3] border-[#0071E3]/20"
-                  />
-                  <DrawerItem 
-                    icon="briefcase"
-                    title="Posting Pekerjaan"
-                    subtitle="Apply for Lab Assistants & TA vacancies"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/posting-pekerjaan'); }}
-                    color="bg-violet-500/10 text-violet-600 border-violet-500/20"
+                    icon="calendar"
+                    title="Reminders"
+                    subtitle="Custom academic schedules & deadlines"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/calendar'); }}
+                    color="bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-500/20"
                   />
                 </div>
               </div>
 
-              {/* CATEGORY: PENJUALAN */}
+              {/* CATEGORY: KONEKSI & KARIR */}
               <div className="flex flex-col gap-3">
-                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Jasa & Freelance</span>
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Koneksi & Karir</span>
                 <div className="grid grid-cols-1 gap-2">
-                  <DrawerItem 
-                    icon="globe"
-                    title="Marketplace Layanan"
-                    subtitle="Peer tutoring, code reviews, writing help"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/marketplace-layanan'); }}
-                    color="bg-teal-500/10 text-teal-600 border-teal-500/20"
-                  />
-                  <DrawerItem 
-                    icon="music"
-                    title="Lofi Soundscape Lounge"
-                    subtitle="Binaural beats, ambient soundtracks, study rain"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/lofi-lounge'); }}
-                    color="bg-rose-500/10 text-rose-600 border-rose-500/20"
-                  />
-                </div>
-              </div>
-
-              {/* CATEGORY: PEMASARAN */}
-              <div className="flex flex-col gap-3">
-                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Pemasaran & AI</span>
-                <div className="grid grid-cols-1 gap-2">
-                  <DrawerItem 
-                    icon="target"
-                    title="Pasang Iklan (Promo Event)"
-                    subtitle="Advertise campus events, seminars & tickets"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/pasang-iklan'); }}
-                    color="bg-sky-500/10 text-sky-600 border-sky-500/20"
-                  />
-                  <DrawerItem 
-                    icon="cpu"
-                    title="AI PDF Note Summarizer"
-                    subtitle="Paste study lecture scripts to visual bullets"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/summarizer'); }}
-                    color="bg-purple-500/10 text-purple-600 border-purple-500/20"
-                  />
-                </div>
-              </div>
-
-              {/* CATEGORY: LEARNING */}
-              <div className="flex flex-col gap-3">
-                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Akademik Pro</span>
-                <div className="grid grid-cols-1 gap-2">
-                  <DrawerItem 
-                    icon="play-circle"
-                    title="Learning Studio"
-                    subtitle="Interactive video player & lecture playback"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/learning'); }}
-                    color="bg-[#54B589]/10 text-[#54B589] border-[#54B589]/20"
-                  />
-                  <DrawerItem 
-                    icon="edit-3"
-                    title="Interactive Whiteboard"
-                    subtitle="Real-time HTML5 sketchpad for study notes"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/whiteboard'); }}
-                    color="bg-orange-500/10 text-orange-600 border-orange-500/20"
-                  />
                   <DrawerItem 
                     icon="heart"
-                    title="Class Buddy Matchmaker"
+                    title="Matchmaker"
                     subtitle="Algorithm search for peers with class overlap"
                     onClick={() => { setShowAppsMenu(false); router.push('/services/matchmaker'); }}
                     color="bg-pink-500/10 text-pink-600 border-pink-500/20"
                   />
                   <DrawerItem 
-                    icon="calendar"
-                    title="Exam Gantt Calendar"
-                    subtitle="Countdown ledger of academic milestones"
-                    onClick={() => { setShowAppsMenu(false); router.push('/services/calendar'); }}
-                    color="bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-500/20"
+                    icon="briefcase"
+                    title="Jobs Info"
+                    subtitle="Apply for Lab Assistants & TA vacancies"
+                    onClick={() => { setShowAppsMenu(false); router.push('/services/posting-pekerjaan'); }}
+                    color="bg-violet-500/10 text-violet-600 border-violet-500/20"
+                  />
+
+                </div>
+              </div>
+
+              {/* CATEGORY: TOOLS & DIAGNOSTICS */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest px-1">Tools & Diagnostics</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <DrawerItem 
+                    icon="cpu"
+                    title="DB Benchmark"
+                    subtitle="Neo4j vs SQLite FoF traversal performance"
+                    onClick={() => { setShowAppsMenu(false); router.push('/benchmark'); }}
+                    color="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   />
                 </div>
               </div>

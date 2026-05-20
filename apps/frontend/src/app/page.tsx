@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import UserCard from '@/components/UserCard';
 import FilterSidebar from '@/components/FilterSidebar';
 import { apiFetch } from '@/utils/api';
@@ -21,12 +21,12 @@ const unwrapNeo4jInt = (val: any): any => {
   return val;
 };
 
-export default function Dashboard() {
+function DashboardContent() {
   const { user: currentUser, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   // Tab configurations
-  const [activeCenterTab, setActiveCenterTab] = useState<'feed' | 'discover' | 'projects'>('feed');
+  const [activeCenterTab, setActiveCenterTab] = useState<'feed' | 'discover' | 'projects' | 'opportunities'>('feed');
   const searchParams = useSearchParams();
   const [activeDiscoverTab, setActiveDiscoverTab] = useState<'filters' | 'interests' | 'skills'>('filters');
 
@@ -36,12 +36,18 @@ export default function Dashboard() {
   const [recommendedBuddies, setRecommendedBuddies] = useState<any[]>([]);
   const [discoverUsers, setDiscoverUsers] = useState<any[]>([]);
 
-  // Interactive opportunities state
-  const [opportunities, setOpportunities] = useState([
-    { id: 'op1', company: 'PT Indofood CBP', role: 'EDP Staff', info: '13 UI alumni work here', logoBg: 'bg-[#003B95]' },
-    { id: 'op2', company: 'PT Astra International', role: 'Multimedia Staff - GSI', info: '217 UI alumni work here', logoBg: 'bg-[#0E49B5]' },
-    { id: 'op3', company: 'Tokopedia', role: 'Fullstack Engineer Intern', info: '5 UI alumni work here', logoBg: 'bg-[#42B549]' }
-  ]);
+  // Dynamic opportunities state
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(true);
+  const [showOpportunityModal, setShowOpportunityModal] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [newOpportunity, setNewOpportunity] = useState({
+    company: '',
+    role: '',
+    info: '',
+    link: '',
+    logoBg: 'bg-[#0071E3]'
+  });
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [appliedRole, setAppliedRole] = useState('');
 
@@ -70,61 +76,72 @@ export default function Dashboard() {
   const [posting, setPosting] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
 
+  const [activeTag, setActiveTag] = useState('#Semua');
+  const feedTags = ['#Semua', '#StudyGroup', '#SharingMateri', '#BukuBekas', '#TanyaSoal'];
+
   // Hook to check for Scholar verification
   useEffect(() => {
     const isScholar = localStorage.getItem('is_study_buddy_scholar') === 'true';
     setIsScholarUser(isScholar);
   }, []);
 
-  const handleToggleComments = (postId: string) => {
-    setExpandedPostComments(prev => ({ ...prev, [postId]: !prev[postId] }));
-    if (!postCommentsList[postId]) {
-      setPostCommentsList(prev => ({
-        ...prev,
-        [postId]: [
-          {
-            id: 'c1',
-            author: { name: 'Sarah Amanda', jurusan: 'Informatika', angkatan: '2024' },
-            content: 'Great study stack! I am totally interested in joining this project team. Let\'s schedule a coordinate session!',
-            likes: 3,
-            hasLiked: false
-          },
-          {
-            id: 'c2',
-            author: { name: 'Rian Kurnia', jurusan: 'Sistem Informasi', angkatan: '2023' },
-            content: 'This is really outstanding, fits exactly SBD material. Is this session open for beginners too?',
-            likes: 1,
-            hasLiked: false
-          }
-        ]
-      }));
+  const handleToggleComments = async (postId: string) => {
+    const isNowExpanded = !expandedPostComments[postId];
+    setExpandedPostComments(prev => ({ ...prev, [postId]: isNowExpanded }));
+    
+    // ambil komentar riil dari backend jika diekspansi
+    if (isNowExpanded) {
+      try {
+        const response = await apiFetch(`/posts/${postId}/comments`);
+        setPostCommentsList(prev => ({
+          ...prev,
+          [postId]: response.data || []
+        }));
+      } catch (err) {
+        console.error('Gagal memuat komentar:', err);
+      }
     }
   };
 
-  const handleAddComment = (postId: string) => {
+  const handleAddComment = async (postId: string) => {
     const text = newCommentText[postId] || '';
     if (!text.trim()) return;
 
-    const newComment = {
-      id: `c_${Date.now()}`,
-      author: {
-        name: currentUser?.name || 'Me',
-        jurusan: currentUser?.jurusan || 'Student',
-        angkatan: unwrapNeo4jInt(currentUser?.angkatan) || '2025',
-        profilePicture: currentUser?.profilePicture || '',
-        isScholar: isScholarUser
-      },
-      content: text,
-      likes: 0,
-      hasLiked: false
-    };
-
-    setPostCommentsList(prev => ({
-      ...prev,
-      [postId]: [newComment, ...(prev[postId] || [])]
-    }));
-    setNewCommentText(prev => ({ ...prev, [postId]: '' }));
+    try {
+      const response = await apiFetch(`/posts/${postId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ content: text })
+      });
+      
+      const newComment = response.data;
+      if (newComment) {
+        setPostCommentsList(prev => ({
+          ...prev,
+          [postId]: [...(prev[postId] || []), newComment]
+        }));
+        
+        // update count komentar lokal
+        setPosts(prev => prev.map(item => {
+          if (item.post?.id === postId) {
+            return {
+              ...item,
+              post: {
+                ...item.post,
+                commentsCount: (unwrapNeo4jInt(item.post.commentsCount) || 0) + 1
+              }
+            };
+          }
+          return item;
+        }));
+        
+        setNewCommentText(prev => ({ ...prev, [postId]: '' }));
+      }
+    } catch (err) {
+      console.error('Gagal menambah komentar:', err);
+      alert('Gagal mengirimkan komentar');
+    }
   };
+
 
   const handleLikeComment = (postId: string, commentId: string) => {
     setPostCommentsList(prev => ({
@@ -194,11 +211,49 @@ export default function Dashboard() {
     }
   };
 
+  const fetchOpportunities = async () => {
+    setLoadingOpportunities(true);
+    try {
+      const response = await apiFetch('/opportunities');
+      setOpportunities(response.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingOpportunities(false);
+    }
+  };
+
+  const handleCreateOpportunity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOpportunity.company.trim() || !newOpportunity.role.trim() || !newOpportunity.info.trim()) return;
+
+    try {
+      await apiFetch('/opportunities', {
+        method: 'POST',
+        body: JSON.stringify(newOpportunity)
+      });
+      setNewOpportunity({
+        company: '',
+        role: '',
+        info: '',
+        link: '',
+        logoBg: 'bg-[#0071E3]'
+      });
+      setShowOpportunityModal(false);
+      await fetchOpportunities();
+      alert('Oportunitas baru berhasil ditambahkan!');
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menambahkan oportunitas.');
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchFeedPosts();
       fetchCommunityProjects();
       fetchSocialRecommendations();
+      fetchOpportunities();
     }
   }, [isAuthenticated]);
 
@@ -411,58 +466,27 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* CAMPUS OPPORTUNITIES BOARD */}
-          <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] rounded-3xl p-5 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[11px] font-extrabold text-[#1D1D1F] tracking-wider uppercase">🎯 Opportunities for You</h3>
-              <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">{opportunities.length} active</span>
-            </div>
-            
-            {opportunities.length === 0 ? (
-              <p className="text-xs text-zinc-400 text-center py-4 italic leading-relaxed">All caught up! Check back later for more UI opportunities.</p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {opportunities.map(op => (
-                  <div key={op.id} className="p-3 bg-white border border-zinc-100 rounded-2xl relative flex flex-col gap-2 shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:scale-[1.01] transition-transform">
-                    {/* Dismiss Button */}
-                    <button 
-                      onClick={() => setOpportunities(prev => prev.filter(o => o.id !== op.id))}
-                      className="absolute top-2 right-2.5 text-zinc-300 hover:text-zinc-500 transition text-[11px] font-bold"
-                      title="Dismiss opportunity"
-                    >
-                      ✕
-                    </button>
-                    
-                    <div className="flex items-center gap-2.5 pr-4">
-                      {/* Logo placeholder */}
-                      <div className={`w-8 h-8 rounded-lg ${op.logoBg} flex items-center justify-center text-[10px] font-extrabold text-white shrink-0`}>
-                        {op.company.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-extrabold text-[#1D1D1F] truncate leading-tight">{op.role}</h4>
-                        <p className="text-[10px] font-medium text-zinc-500 truncate mt-0.5">{op.company}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between border-t border-zinc-50/80 pt-2 mt-1">
-                      <span className="text-[9px] font-semibold text-zinc-400">{op.info}</span>
-                      <button 
-                        onClick={() => {
-                          setAppliedRole(`${op.role} at ${op.company}`);
-                          setShowApplyModal(true);
-                          setOpportunities(prev => prev.filter(o => o.id !== op.id));
-                        }}
-                        className="text-[9px] font-extrabold bg-logo-gradient text-white px-2.5 py-1 rounded-lg hover:opacity-90 transition shadow-sm"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+           <button
+            onClick={() => window.dispatchEvent(new Event('open-apps-drawer'))}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 hover:opacity-95 text-white font-extrabold text-[10px] tracking-tight shadow-md hover:shadow-lg transition duration-200 text-left mt-2 group"
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 animate-pulse text-yellow-300" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="4" height="4" rx="1" />
+                <rect x="10" y="3" width="4" height="4" rx="1" />
+                <rect x="17" y="3" width="4" height="4" rx="1" />
+                <rect x="3" y="10" width="4" height="4" rx="1" />
+                <rect x="10" y="10" width="4" height="4" rx="1" />
+                <rect x="17" y="10" width="4" height="4" rx="1" />
+                <rect x="3" y="17" width="4" height="4" rx="1" />
+                <rect x="10" y="17" width="4" height="4" rx="1" />
+                <rect x="17" y="17" width="4" height="4" rx="1" />
+              </svg>
+              Explore Premium Tools
+            </span>
+            <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider group-hover:translate-x-0.5 transition-transform duration-200">&rarr;</span>
+          </button>
           </div>
-        </div>
 
         {/* CENTER COLUMN: Feed composer + Tabs */}
         <div className="lg:col-span-6 flex flex-col gap-6">
@@ -485,6 +509,12 @@ export default function Dashboard() {
               className={`flex-1 py-2.5 text-center text-sm font-semibold rounded-xl transition ${activeCenterTab === 'projects' ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-[#0071E3]' : 'text-zinc-500 hover:text-[#1D1D1F]'}`}
             >
               Projects
+            </button>
+            <button 
+              onClick={() => setActiveCenterTab('opportunities')}
+              className={`flex-1 py-2.5 text-center text-sm font-semibold rounded-xl transition ${activeCenterTab === 'opportunities' ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-[#0071E3]' : 'text-zinc-500 hover:text-[#1D1D1F]'}`}
+            >
+              Opportunities
             </button>
           </div>
 
@@ -523,6 +553,27 @@ export default function Dashboard() {
                 </div>
               </form>
 
+              {/* Category tags selector */}
+              <div className="flex gap-2 overflow-x-auto pb-1 max-w-full custom-scrollbar shrink-0">
+                {feedTags.map(tag => {
+                  const isActive = activeTag === tag;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setActiveTag(tag)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${
+                        isActive 
+                          ? 'bg-logo-gradient text-white shadow-sm scale-[1.02]' 
+                          : 'bg-white/60 hover:bg-white text-zinc-550 hover:text-zinc-800 border border-zinc-200/50 shadow-inner'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Feed posts list */}
               {loadingPosts ? (
                 <div className="space-y-4">
@@ -530,13 +581,15 @@ export default function Dashboard() {
                     <div key={i} className="h-44 rounded-3xl bg-white/40 animate-pulse border border-white/40" />
                   ))}
                 </div>
-              ) : posts.length === 0 ? (
-                <div className="text-center py-20 bg-white/40 border border-white/40 rounded-3xl text-zinc-400">
-                  No post written yet. Be the first to share something!
+              ) : posts.filter(item => activeTag === '#Semua' || item.post?.content?.includes(activeTag)).length === 0 ? (
+                <div className="text-center py-20 bg-white/40 border border-white/40 rounded-3xl text-zinc-400 text-xs font-semibold">
+                  No post written yet with {activeTag}. Be the first to share something!
                 </div>
               ) : (
                 <div className="flex flex-col gap-6">
-                  {posts.map((item, idx) => (
+                  {posts
+                    .filter(item => activeTag === '#Semua' || item.post?.content?.includes(activeTag))
+                    .map((item, idx) => (
                     <div key={item.post?.id || idx} className="p-6 bg-white/70 backdrop-blur-xl border border-white/40 shadow-sm rounded-3xl flex flex-col">
                       <div className="flex items-center justify-between gap-3 mb-4">
                         <div className="flex items-center gap-3">
@@ -593,9 +646,10 @@ export default function Dashboard() {
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-3.658A8.967 8.967 0 0 1 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
                           </svg>
-                          <span>{postCommentsList[item.post?.id]?.length ?? 2} Comments</span>
+                          <span>{postCommentsList[item.post?.id]?.length ?? (unwrapNeo4jInt(item.post?.commentsCount) || 0)} Comments</span>
                         </button>
                       </div>
+
 
                       {/* Expandable Comments Drawer */}
                       {expandedPostComments[item.post?.id] && (
@@ -745,22 +799,17 @@ export default function Dashboard() {
           {/* TAB 3: Projects showcase */}
           {activeCenterTab === 'projects' && (
             <div className="flex flex-col gap-6">
-              {/* Project Creator Form */}
-              <form onSubmit={handleCreateProject} className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_0_rgba(0,0,0,0.04)] rounded-3xl p-6">
-                <h3 className="font-semibold text-[#1D1D1F] text-sm mb-4">Showcase Your Project</h3>
-                <div className="flex flex-col gap-4">
-                  <Input label="Project Title" placeholder="e.g. StudyBuddy App" value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} />
-                  <Input label="Short Description" placeholder="What does it solve? Who is it for?" value={newProject.description} onChange={e => setNewProject({...newProject, description: e.target.value})} />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input label="Image URL (Optional)" placeholder="https://..." value={newProject.imageUrl} onChange={e => setNewProject({...newProject, imageUrl: e.target.value})} />
-                    <Input label="Demo Link (Optional)" placeholder="https://github.com/..." value={newProject.demoUrl} onChange={e => setNewProject({...newProject, demoUrl: e.target.value})} />
-                  </div>
-                  <Input label="Skills Used (Comma separated)" placeholder="React, Neo4j, Tailwind" value={newProject.skills} onChange={e => setNewProject({...newProject, skills: e.target.value})} />
-                  <Button type="submit" disabled={creatingProject || !newProject.title || !newProject.description} className="px-6 self-end !py-2 text-xs">
-                    {creatingProject ? 'Publishing...' : 'Upload Project'}
-                  </Button>
+              <div className="flex items-center justify-between bg-white/70 backdrop-blur-xl border border-white/40 shadow-sm p-6 rounded-3xl">
+                <div>
+                  <h3 className="text-sm text-[#1D1D1F] tracking-tight">Add your own project</h3>
                 </div>
-              </form>
+                <button 
+                  onClick={() => setShowProjectModal(true)}
+                  className="w-fit text-xs font-bold text-white bg-[#0071E3] hover:opacity-90 rounded-md py-2 px-4 transition shadow-sm"
+                >
+                  + Add Project
+                </button>
+              </div>
 
               {/* Projects Grid */}
               {loadingProjects ? (
@@ -776,7 +825,7 @@ export default function Dashboard() {
                   {projects.map((item, idx) => (
                     <div key={item.project?.id || idx} className="p-5 bg-white/70 backdrop-blur-xl border border-white/40 shadow-sm rounded-3xl flex flex-col hover:-translate-y-0.5 transition-all">
                       {item.project?.imageUrl && (
-                        <img src={item.project.imageUrl} alt={item.project.title} className="w-full h-36 object-cover rounded-2xl border border-black/5 mb-4" />
+                        <img src={item.project.imageUrl} alt={item.project.imageUrl} className="w-full h-36 object-cover rounded-2xl border border-black/5 mb-4" />
                       )}
                       
                       <h4 className="font-bold text-base text-[#1D1D1F] tracking-tight">{item.project?.title}</h4>
@@ -802,6 +851,81 @@ export default function Dashboard() {
                           <a href={item.project.demoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#0071E3] hover:underline">
                             Demo Link &rarr;
                           </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: Opportunities showcase */}
+          {activeCenterTab === 'opportunities' && (
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#1D1D1F] tracking-tight">Campus & Career Opportunities</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Explore and apply for internships, jobs, lab positions, or tutor roles recommended for you.</p>
+                </div>
+
+              </div>
+
+                <button 
+                  onClick={() => setShowOpportunityModal(true)}
+                  className="w-fit text-xs font-bold text-white bg-[#0071E3] hover:opacity-90 rounded-md py-2 px-4 transition shadow-sm"
+                >
+                  + Add Opportunity
+                </button>
+
+              {loadingOpportunities ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-36 bg-white/40 border border-white/40 rounded-3xl" />
+                  ))}
+                </div>
+              ) : opportunities.length === 0 ? (
+                <div className="text-center py-20 bg-white/40 border border-white/40 rounded-3xl text-zinc-400">
+                  Belum ada oportunitas magang/kerja. Jadilah yang pertama membagikannya!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {opportunities.map(op => (
+                    <div key={op.id} className="p-5 bg-white/70 backdrop-blur-xl border border-white/40 rounded-3xl flex flex-col justify-between hover:scale-[1.01] hover:shadow-md transition duration-200 shadow-md hover:-translate-y-0.5">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl ${op.logoBg || 'bg-[#0E49B5]'} flex items-center justify-center text-xs font-extrabold text-white shrink-0`}>
+                            {op.company.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-extrabold text-[#1D1D1F] truncate leading-tight">{op.role}</h4>
+                            <p className="text-xs font-medium text-zinc-500 truncate mt-0.5">{op.company}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-600 mt-4 leading-relaxed line-clamp-2">{op.info}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-zinc-100 pt-4 mt-4">
+                        <span className="text-[10px] font-semibold text-zinc-400">UI Student Verified</span>
+                        {op.link ? (
+                          <a 
+                            href={op.link.startsWith('http') ? op.link : `https://${op.link}`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs font-extrabold bg-[#0071E3] hover:opacity-90 text-white px-4 py-2 rounded-xl transition shadow-sm"
+                          >
+                            Apply Externally &rarr;
+                          </a>
+                        ) : (
+                           <button 
+                             onClick={() => {
+                               setAppliedRole(`${op.role} at ${op.company}`);
+                               setShowApplyModal(true);
+                             }}
+                             className="text-xs font-extrabold bg-indigo-50 border border-indigo-105 hover:bg-indigo-100/80 text-indigo-700 px-4 py-2 rounded-xl transition"
+                           >
+                             Quick Apply
+                           </button>
                         )}
                       </div>
                     </div>
@@ -892,6 +1016,192 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* ADD OPPORTUNITY MODAL OVERLAY */}
+      {showOpportunityModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-md flex items-center justify-center z-[9999] animate-in fade-in duration-200">
+          <form 
+            onSubmit={handleCreateOpportunity}
+            className="bg-white/90 backdrop-blur-2xl border border-white/50 shadow-[0_24px_64px_rgba(0,0,0,0.18)] max-w-md w-full mx-4 rounded-3xl p-6 md:p-8 animate-in zoom-in-95 duration-200 text-left flex flex-col gap-4"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[9px] font-extrabold uppercase text-indigo-600 bg-indigo-50 border border-indigo-150 px-2.5 py-0.5 rounded">
+                  Opportunities Board
+                </span>
+                <h3 className="text-base font-extrabold text-zinc-800 mt-2">Bagikan Oportunitas Baru</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowOpportunityModal(false)}
+                className="text-zinc-400 hover:text-zinc-600 font-bold text-xs"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5 mt-2">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Nama Perusahaan / Organisasi</label>
+              <input 
+                type="text" 
+                required
+                value={newOpportunity.company}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, company: e.target.value }))}
+                placeholder="Contoh: Google Indonesia, GoTo, Fasilkom UI" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Nama Peran / Jabatan</label>
+              <input 
+                type="text" 
+                required
+                value={newOpportunity.role}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, role: e.target.value }))}
+                placeholder="Contoh: Frontend Engineer Intern, Asisten Dosen SBD" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Deskripsi Singkat / Info Alumni</label>
+              <input 
+                type="text" 
+                required
+                value={newOpportunity.info}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, info: e.target.value }))}
+                placeholder="Contoh: 12 UI alumni bekerja di sini • Full-time" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Tautan Pendaftaran (Link Apply)</label>
+              <input 
+                type="text" 
+                value={newOpportunity.link}
+                onChange={e => setNewOpportunity(prev => ({ ...prev, link: e.target.value }))}
+                placeholder="Contoh: https://careers.google.com atau kosongan" 
+                className="bg-zinc-50 border border-zinc-150 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300/30 transition text-zinc-700 font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase text-zinc-400 font-bold">Warna Aksen Logo</label>
+              <div className="flex gap-2">
+                {[
+                  { name: 'Red', bg: 'bg-[#EF4444]' },
+                  { name: 'Blue', bg: 'bg-[#0071E3]' },
+                  { name: 'Green', bg: 'bg-[#10B981]' },
+                  { name: 'Purple', bg: 'bg-[#8B5CF6]' },
+                  { name: 'Orange', bg: 'bg-[#F59E0B]' }
+                ].map(col => {
+                  const isSelected = newOpportunity.logoBg === col.bg;
+                  return (
+                    <button 
+                      key={col.bg}
+                      type="button"
+                      onClick={() => setNewOpportunity(prev => ({ ...prev, logoBg: col.bg }))}
+                      className={`w-6 h-6 rounded-full ${col.bg} transition ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2 scale-110' : 'hover:scale-105'}`}
+                      title={col.name}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-zinc-100">
+              <button 
+                type="button"
+                onClick={() => setShowOpportunityModal(false)}
+                className="px-4 py-2 text-zinc-500 hover:text-zinc-700 text-xs font-bold transition"
+              >
+                Batal
+              </button>
+              <button 
+                type="submit" 
+                className="px-6 py-2 bg-logo-gradient text-white font-bold rounded-xl text-xs hover:opacity-90 shadow-md transition"
+              >
+                Bagikan Oportunitas
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ADD PROJECT MODAL OVERLAY */}
+      {showProjectModal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-md flex items-center justify-center z-[9999] animate-in fade-in duration-200">
+          <form 
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await handleCreateProject(e);
+              setShowProjectModal(false);
+            }}
+            className="bg-white/90 backdrop-blur-2xl border border-white/50 shadow-[0_24px_64px_rgba(0,0,0,0.18)] max-w-md w-full mx-4 rounded-3xl p-6 md:p-8 animate-in zoom-in-95 duration-200 text-left flex flex-col gap-4"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[9px] font-extrabold uppercase text-indigo-600 bg-indigo-50 border border-indigo-150 px-2.5 py-0.5 rounded">
+                  Academic Portfolio
+                </span>
+                <h3 className="text-base font-extrabold text-zinc-800 mt-2">Upload Project Baru</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowProjectModal(false)}
+                className="text-zinc-400 hover:text-zinc-600 font-bold text-xs"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4 mt-2">
+              <Input label="Project Title" placeholder="e.g. StudyBuddy App" value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} />
+              <Input label="Short Description" placeholder="What does it solve? Who is it for?" value={newProject.description} onChange={e => setNewProject({...newProject, description: e.target.value})} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Image URL (Optional)" placeholder="https://..." value={newProject.imageUrl} onChange={e => setNewProject({...newProject, imageUrl: e.target.value})} />
+                <Input label="Demo Link (Optional)" placeholder="https://github.com/..." value={newProject.demoUrl} onChange={e => setNewProject({...newProject, demoUrl: e.target.value})} />
+              </div>
+              <Input label="Skills Used (Comma separated)" placeholder="React, Neo4j, Tailwind" value={newProject.skills} onChange={e => setNewProject({...newProject, skills: e.target.value})} />
+            </div>
+
+            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-zinc-100">
+              <button 
+                type="button"
+                onClick={() => setShowProjectModal(false)}
+                className="px-4 py-2 text-zinc-500 hover:text-zinc-700 text-xs font-bold transition"
+              >
+                Batal
+              </button>
+              <button 
+                type="submit" 
+                disabled={creatingProject || !newProject.title || !newProject.description}
+                className="px-6 py-2 bg-logo-gradient text-white font-bold rounded-xl text-xs hover:opacity-90 shadow-md transition disabled:opacity-50"
+              >
+                {creatingProject ? 'Publishing...' : 'Publish Project'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center p-32 text-center text-zinc-500 font-medium">
+        <svg className="animate-spin h-8 w-8 text-[#0071E3] mb-4" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span>Loading Study Buddy environment...</span>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

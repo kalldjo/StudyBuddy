@@ -1,10 +1,11 @@
 const { getSession } = require('../config/neo4j');
 
-const searchByFilters = async (fakultas, jurusan, angkatan) => {
+const searchByFilters = async (currentUserId, fakultas, jurusan, angkatan) => {
   const session = getSession();
   try {
     const query = `
       MATCH (u:User)
+      WHERE u.id <> $currentUserId
       OPTIONAL MATCH (u)-[:MAJORS_IN]->(j:Jurusan)
       OPTIONAL MATCH (u)-[:BELONGS_TO_FAKULTAS]->(f:Fakultas)
       OPTIONAL MATCH (u)-[:CLASS_OF]->(a:Angkatan)
@@ -25,6 +26,7 @@ const searchByFilters = async (fakultas, jurusan, angkatan) => {
     `;
     
     const params = {
+      currentUserId: currentUserId || '',
       fakultas: fakultas || null,
       jurusan: jurusan || null,
       angkatan: angkatan || null
@@ -32,9 +34,13 @@ const searchByFilters = async (fakultas, jurusan, angkatan) => {
     
     const result = await session.run(query, params);
     return result.records.map(record => {
-      const u = record.get('u');
-      if (u) delete u.passwordHash;
-      return u;
+      const user = record.get('user');
+      const connectionStatus = record.get('connectionStatus');
+      if (user) delete user.passwordHash;
+      return {
+        user,
+        connectionStatus
+      };
     });
   } finally {
     await session.close();

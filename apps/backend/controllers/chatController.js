@@ -8,6 +8,13 @@ const sendMessage = async (req, res) => {
     }
     
     const message = await chatModel.sendMessage(req.userId, receiverId, content);
+    
+    // push real-time via socket.io
+    if (global.io) {
+      global.io.to(receiverId).emit('receive_message', message);
+      global.io.to(req.userId).emit('receive_message', message);
+    }
+    
     res.json({ success: true, data: message });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -27,11 +27,24 @@ const createOpportunity = async (req, res) => {
 
 const getOpportunities = async (req, res) => {
   try {
-    const opportunities = await opportunityModel.getOpportunities();
+    const opportunities = await opportunityModel.getOpportunities(req.userId);
     res.json({ success: true, data: opportunities });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-module.exports = { createOpportunity, getOpportunities };
+// apply lamaran pekerjaan asisten / lowongan
+const applyOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId, coverLetter } = req.body;
+    const success = await opportunityModel.applyForOpportunity(req.userId, id, studentId, coverLetter);
+    res.json({ success, message: success ? 'Lamaran berhasil dikirim!' : 'Gagal mengirimkan lamaran.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { createOpportunity, getOpportunities, applyOpportunity };
+

@@ -3,7 +3,7 @@ const recommendationModel = require('../models/recommendationModel');
 const searchByFilters = async (req, res) => {
   try {
     const { fakultas, jurusan, angkatan } = req.query;
-    const data = await recommendationModel.searchByFilters(fakultas, jurusan, angkatan);
+    const data = await recommendationModel.searchByFilters(req.userId, fakultas, jurusan, angkatan);
     res.json({ data });
   } catch (error) {
     res.status(500).json({ error: error.message });

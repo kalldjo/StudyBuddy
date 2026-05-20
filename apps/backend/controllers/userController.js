@@ -65,4 +65,17 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-module.exports = { updateProfile, updateAcademic, updateInterests, updateSkills, getUserProfile };
+const getUserGraph = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const graphData = await userModel.getUserGraph(id);
+    if (!graphData) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ success: true, data: graphData });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { updateProfile, updateAcademic, updateInterests, updateSkills, getUserProfile, getUserGraph };
