@@ -44,7 +44,7 @@ const getUserByEmail = async (email) => {
       RETURN u { .*, skills: [x IN skills WHERE x IS NOT NULL] } AS u
     `;
     const result = await session.run(query, { email });
-    return result.records.length ? result.records[0].get("u").properties : null;
+    return result.records.length ? result.records[0].get("u") : null;
   } finally {
     await session.close();
   }
