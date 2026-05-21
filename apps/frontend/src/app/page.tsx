@@ -478,7 +478,7 @@ function DashboardContent() {
             )} */}
 
             <div className="w-full border-t border-black/5 mt-6 pt-4 flex flex-col gap-2.5 text-left text-xs font-semibold text-zinc-600">
-              <Link href={`/user/${currentUser?.id}/network`} className="flex justify-between items-center hover:text-[#0071E3]">
+              <Link href={`/network`} className="flex justify-between items-center hover:text-[#0071E3]">
                 <span className="flex items-center gap-1.5">
                   My Connection
                   {pendingRequestsCount > 0 && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-black leading-none">{pendingRequestsCount > 9 ? "9+" : pendingRequestsCount}</span>}
