@@ -8,6 +8,16 @@ interface BenchmarkResult {
   neo4jTimeMs: number;
   sqliteTimeMs: number;
   conclusion: string;
+  runs?: Array<{
+    run: number;
+    neo4jTimeMs: number;
+    neo4jDbOnlyTimeMs: number;
+    sqliteTimeMs: number;
+  }>;
+  stats?: {
+    neo4j: { avg: number; avgDbOnly: number; min: number; max: number };
+    sqlite: { avg: number; min: number; max: number };
+  };
 }
 
 export default function BenchmarkPage() {
@@ -193,6 +203,74 @@ export default function BenchmarkPage() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 10-Run Statistical Breakdown */}
+      {result && result.runs && !loading && (
+        <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgba(0,0,0,0.03)] rounded-3xl p-6 flex flex-col gap-6 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest">Statistical Analysis</p>
+              <h3 className="text-lg font-black text-[#1D1D1F] tracking-tight mt-0.5">Automated 10x Iterations Breakdown</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Rata-rata dihitung dari 10 kali eksekusi beruntun untuk meminimalkan anomali cold-start atau delay sementara.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-xl border border-indigo-100">
+                10 runs completed
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl">
+              <span className="text-[9px] font-black text-indigo-400 uppercase tracking-wider block">Neo4j Average (incl. Network)</span>
+              <span className="text-lg font-black text-indigo-600 block mt-1">{result.stats?.neo4j.avg} ms</span>
+              <span className="text-[9px] text-zinc-400 block mt-0.5">Min: {result.stats?.neo4j.min}ms | Max: {result.stats?.neo4j.max}ms</span>
+            </div>
+            <div className="p-4 bg-violet-50/50 border border-violet-100/50 rounded-2xl">
+              <span className="text-[9px] font-black text-violet-400 uppercase tracking-wider block">Neo4j Engine-Only (No Network Overhead)</span>
+              <span className="text-lg font-black text-violet-600 block mt-1">{result.stats?.neo4j.avgDbOnly} ms</span>
+              <span className="text-[9px] text-zinc-400 block mt-0.5">Murni eksekusi query di server Neo4j AuraDB</span>
+            </div>
+            <div className="p-4 bg-amber-50/50 border border-amber-100/50 rounded-2xl">
+              <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider block">SQLite Average (In-Memory)</span>
+              <span className="text-lg font-black text-amber-600 block mt-1">{result.stats?.sqlite.avg} ms</span>
+              <span className="text-[9px] text-zinc-400 block mt-0.5">Min: {result.stats?.sqlite.min}ms | Max: {result.stats?.sqlite.max}ms</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-zinc-150 rounded-2xl">
+            <table className="w-full text-[11px] font-semibold text-zinc-600 border-collapse">
+              <thead>
+                <tr className="bg-zinc-50 border-b border-zinc-150 text-[10px] text-zinc-400 uppercase tracking-wider font-black">
+                  <th className="text-left py-3 px-4">Run #</th>
+                  <th className="text-right py-3 px-4 text-indigo-600">Neo4j Total (ms)</th>
+                  <th className="text-right py-3 px-4 text-violet-600">Neo4j DB-Only (ms)</th>
+                  <th className="text-right py-3 px-4 text-amber-600">SQLite Time (ms)</th>
+                  <th className="text-right py-3 px-4">Winner</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {result.runs?.map((r, idx) => {
+                  const runNeo4jWins = r.neo4jTimeMs < r.sqliteTimeMs;
+                  return (
+                    <tr key={idx} className="hover:bg-zinc-50/50 transition">
+                      <td className="py-2.5 px-4 font-bold text-zinc-400">Run #{r.run}</td>
+                      <td className={`py-2.5 px-4 text-right font-black ${runNeo4jWins ? 'text-indigo-600' : 'text-zinc-500'}`}>{r.neo4jTimeMs}</td>
+                      <td className="py-2.5 px-4 text-right font-bold text-violet-600">{r.neo4jDbOnlyTimeMs}</td>
+                      <td className={`py-2.5 px-4 text-right font-black ${!runNeo4jWins ? 'text-amber-600' : 'text-zinc-500'}`}>{r.sqliteTimeMs}</td>
+                      <td className="py-2.5 px-4 text-right font-bold">
+                        {runNeo4jWins ? '🏆 Neo4j' : '⚡ SQLite'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
